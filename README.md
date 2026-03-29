@@ -12,12 +12,15 @@ Secure-by-default Core PHP API skeleton (same layering as before, domain routes 
 ## Layout
 
 ```
+database/
+  schema.sql       — full MySQL schema (fresh installs)
+  migrations/      — incremental SQL for existing databases (optional)
 public/
   index.php
   api-docs.html
 src/
   Core/          App, Router, Request, Response, Database, Jwt, Env, Validator, …
-  Controllers/   HealthController (+ your controllers)
+  Controllers/   AuthController (+ your controllers)
   Middleware/    AuthMiddleware
   Security/      RateLimiter, LoginLockout
 storage/logs/
@@ -25,9 +28,9 @@ storage/logs/
 
 ## Quick start
 
-1. `cp .env.example .env` and set `JWT_SECRET` and database credentials when you use MySQL.
+1. `cp .env.example .env` and set `JWT_SECRET` and database credentials when you use MySQL. Create the database, then load tables: `mysql -u USER -p DB_NAME < database/schema.sql`.
 2. From project root: `php -S localhost:8000 -t public`
-3. `GET http://localhost:8000/v1/health` → JSON health payload.
+3. Open `http://localhost:8000/api-docs.html` for endpoint reference.
 
 ## Docs page
 

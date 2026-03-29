@@ -3,73 +3,521 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SuprMorning API</title>
+  <title>SuprMorning API — Docs</title>
   <style>
     :root {
-      --bg: #0f1419;
-      --surface: #1a2332;
-      --border: #2d3a4d;
-      --text: #e7edf4;
-      --muted: #8b9cb3;
-      --accent: #3d8bfd;
+      --sidebar-bg: #f4f6f9;
+      --sidebar-border: #e1e6ed;
+      --main-bg: #ffffff;
+      --text: #1a1d21;
+      --muted: #5c6570;
+      --accent: #0d6efd;
+      --accent-soft: #e7f1ff;
+      --code-bg: #1e293b;
+      --code-text: #e2e8f0;
+      --card-border: #e1e6ed;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sidebar-width: 280px;
+      --header-h: 0px;
     }
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: var(--bg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--main-bg);
       color: var(--text);
       line-height: 1.55;
-      padding: 1.5rem;
-      max-width: 52rem;
+      font-size: 15px;
     }
-    h1 { font-size: 1.35rem; margin: 0 0 0.5rem; }
-    p { color: var(--muted); margin: 0 0 1rem; }
-    a { color: var(--accent); }
-    section {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem 1.15rem;
-      margin-top: 1rem;
+    .shell {
+      display: flex;
+      min-height: 100vh;
+      align-items: stretch;
     }
-    code, pre { font-family: var(--mono); font-size: 0.88rem; }
-    pre {
-      background: #0d1117;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.75rem 1rem;
-      overflow-x: auto;
+    .sidebar {
+      flex: 0 0 var(--sidebar-width);
+      max-width: var(--sidebar-width);
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--sidebar-border);
+      position: sticky;
+      top: 0;
+      align-self: flex-start;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 2;
+    }
+    .sidebar-inner {
+      padding: 1.25rem 1rem 2rem;
+    }
+    .sidebar h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0 0 1rem;
+      letter-spacing: -0.02em;
       color: var(--text);
     }
-    .method { color: #3fb950; font-weight: 700; }
+    .base-url-block {
+      margin-bottom: 1.25rem;
+    }
+    .base-url-block label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .base-url-block input {
+      width: 100%;
+      padding: 0.45rem 0.5rem;
+      border: 1px solid var(--sidebar-border);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-family: var(--mono);
+      background: #fff;
+    }
+    .base-url-block input:focus {
+      outline: 2px solid var(--accent-soft);
+      border-color: var(--accent);
+    }
+    .nav-heading {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin: 1.25rem 0 0.5rem;
+    }
+    .nav-heading:first-of-type { margin-top: 0; }
+    .sidebar nav a {
+      display: block;
+      padding: 0.4rem 0.5rem;
+      margin: 0.1rem 0;
+      border-radius: 6px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.875rem;
+      line-height: 1.35;
+      border-left: 3px solid transparent;
+    }
+    .sidebar nav a:hover {
+      background: rgba(13, 110, 253, 0.08);
+      color: var(--accent);
+    }
+    .sidebar nav a.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+      border-left-color: var(--accent);
+    }
+    .sidebar nav a .method-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      opacity: 0.85;
+      margin-right: 0.35rem;
+    }
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 2rem 2.5rem 4rem;
+      max-width: 52rem;
+    }
+    .main > header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .main > header h2 {
+      font-size: 1.5rem;
+      margin: 0 0 0.5rem;
+      font-weight: 700;
+    }
+    .main > header .lede {
+      color: var(--muted);
+      margin: 0;
+      max-width: 40rem;
+    }
+    section.doc-section {
+      scroll-margin-top: 1.25rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    section.doc-section:last-of-type {
+      border-bottom: none;
+    }
+    section.doc-section h3 {
+      font-size: 1.05rem;
+      margin: 0 0 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    section.doc-section h3 .method {
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      font-family: var(--mono);
+    }
+    .method-get { background: #d1fae5; color: #065f46; }
+    .method-post { background: #dbeafe; color: #1e40af; }
+    section.doc-section h3 code.path {
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    section.doc-section h4 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin: 1.25rem 0 0.5rem;
+    }
+    p, li { color: var(--muted); margin: 0 0 0.65rem; }
+    ul { margin: 0 0 0.75rem; padding-left: 1.2rem; }
+    strong { color: var(--text); }
+    a { color: var(--accent); }
+    code.inline {
+      font-family: var(--mono);
+      font-size: 0.84em;
+      background: #f1f5f9;
+      padding: 0.12rem 0.35rem;
+      border-radius: 4px;
+      color: #0f172a;
+    }
+    pre {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+      margin: 0.5rem 0 0;
+      line-height: 1.45;
+    }
+    .note {
+      font-size: 0.9rem;
+      margin-top: 0.75rem;
+      color: var(--muted);
+    }
+    .curl {
+      position: relative;
+      margin-top: 0.75rem;
+    }
+    .curl button {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      font-size: 0.7rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .curl button:hover { background: rgba(255,255,255,0.2); }
+    @media (max-width: 900px) {
+      .shell { flex-direction: column; }
+      .sidebar {
+        position: relative;
+        height: auto;
+        max-width: none;
+        flex: none;
+        border-right: none;
+        border-bottom: 1px solid var(--sidebar-border);
+      }
+      .sidebar-inner { padding-bottom: 1rem; }
+      .sidebar nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+      }
+      .sidebar nav a { flex: 1 1 auto; min-width: 140px; }
+      .nav-heading { width: 100%; }
+      .main { padding: 1.25rem 1rem 3rem; }
+    }
   </style>
 </head>
 <body>
-  <h1>SuprMorning API</h1>
-  <p>Starter documentation. Set <strong>Base URL</strong> to your API origin (e.g. <code>http://localhost:8000</code>).</p>
+  <div class="shell">
+    <aside class="sidebar" aria-label="API navigation">
+      <div class="sidebar-inner">
+        <h1>SuprMorning API</h1>
+        <div class="base-url-block">
+          <label for="baseUrl">Base URL</label>
+          <input type="text" id="baseUrl" autocomplete="url" placeholder="http://localhost:8000" />
+        </div>
+        <nav aria-label="Authentication endpoints">
+          <p class="nav-heading">Authentication</p>
+          <a href="#overview" data-section="overview">Token flow &amp; overview</a>
+          <a href="#post-auth-otp-send" data-section="post-auth-otp-send"><span class="method-tag">POST</span> /auth/otp/send</a>
+          <a href="#post-auth-otp-verify" data-section="post-auth-otp-verify"><span class="method-tag">POST</span> /auth/otp/verify</a>
+          <a href="#post-auth-refresh" data-section="post-auth-refresh"><span class="method-tag">POST</span> /auth/refresh</a>
+          <a href="#post-auth-logout" data-section="post-auth-logout"><span class="method-tag">POST</span> /auth/logout</a>
+          <a href="#get-auth-me" data-section="get-auth-me"><span class="method-tag">GET</span> /auth/me</a>
+        </nav>
+        <nav aria-label="Other reference">
+          <p class="nav-heading">Reference</p>
+          <a href="#cors" data-section="cors">CORS</a>
+          <a href="#schema" data-section="schema">Database schema</a>
+        </nav>
+      </div>
+    </aside>
 
-  <section>
-    <p><span class="method">GET</span> <code>/v1/health</code></p>
-    <p>Public. Returns service status and timestamp.</p>
-    <pre id="sample">{}</pre>
-  </section>
+    <main class="main">
+      <header>
+        <h2>API reference</h2>
+        <p class="lede">JSON under <code class="inline">/v1</code>. Writable routes expect <code class="inline">Content-Type: application/json</code>. Set <strong>Base URL</strong> in the sidebar; example cURL commands use it below.</p>
+      </header>
 
-  <section>
-    <p><strong>Adding routes</strong>: register handlers in <code>src/Core/App.php</code> using <code>Router::add</code>. Use <code>Controllers</code> → <code>Services</code> → <code>Repositories</code> as you grow.</p>
-  </section>
+      <section class="doc-section" id="overview" data-section="overview">
+        <h3>Token flow &amp; overview</h3>
+        <p>Passwordless sign-in with one flow: <strong>send</strong> an OTP to any phone (new or existing). <strong>Verify</strong> the code; if no user exists for that phone, the server creates one using <code class="inline">full_name</code> (and optional <code class="inline">email</code>) from the verify request, then returns the same token shape as for returning users.</p>
+        <p>By default OTPs are logged to <code class="inline">storage/logs/otp.log</code> — replace with SMS in production (<code class="inline">OtpNotifier</code>).</p>
+        <p><strong>Access JWT</strong> — short-lived. Send as <code class="inline">Authorization: Bearer &lt;access_token&gt;</code>. Payload includes <code class="inline">sub</code> (user id) and <code class="inline">typ: "access"</code>.</p>
+        <p><strong>Refresh token</strong> — opaque hex string, stored server-side as a hash. Use with <code class="inline">POST /v1/auth/refresh</code> and <code class="inline">POST /v1/auth/logout</code>. Each successful refresh <strong>rotates</strong> the refresh token; persist the new one.</p>
+        <h4>Environment</h4>
+        <ul>
+          <li><code class="inline">JWT_ACCESS_TTL_SECONDS</code>, <code class="inline">JWT_REFRESH_TTL_SECONDS</code>, <code class="inline">JWT_SECRET</code>, <code class="inline">JWT_ISSUER</code>, <code class="inline">JWT_AUDIENCE</code></li>
+          <li><code class="inline">OTP_LENGTH</code>, <code class="inline">OTP_TTL_SECONDS</code>, <code class="inline">OTP_MAX_ATTEMPTS</code>, <code class="inline">OTP_LOG_TO_FILE</code>, <code class="inline">OTP_RETURN_CODE_IN_RESPONSE</code> (dev only)</li>
+        </ul>
+      </section>
+
+      <section class="doc-section" id="post-auth-otp-send" data-section="post-auth-otp-send">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/auth/otp/send</code></h3>
+        <p>Creates or replaces the OTP challenge for a phone. Rate-limited per IP and per phone.</p>
+        <h4>Body</h4>
+        <ul>
+          <li><code class="inline">phone</code> (required) — 10–15 digits after normalization.</li>
+          <li><code class="inline">device_label</code>, <code class="inline">user_agent</code> (optional).</li>
+        </ul>
+        <h4>Responses</h4>
+        <ul>
+          <li><code class="inline">200</code> — <code class="inline">{ "ok": true, "expires_in": … }</code>; dev may include <code class="inline">debug_otp_code</code>.</li>
+          <li><code class="inline">403</code> — phone registered but account disabled.</li>
+          <li><code class="inline">422</code> — invalid phone.</li>
+          <li><code class="inline">429</code> — rate limit.</li>
+        </ul>
+        <h4>Example</h4>
+        <pre class="json-example">{ "phone": "+1 555 123 4567" }</pre>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/auth/otp/send" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+15551234567"}'</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="post-auth-otp-verify" data-section="post-auth-otp-verify">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/auth/otp/verify</code></h3>
+        <p>Validates OTP and returns tokens. New phones require <code class="inline">full_name</code>; existing phones ignore profile fields. Lockout after repeated failures (phone + IP).</p>
+        <h4>Body</h4>
+        <ul>
+          <li><code class="inline">phone</code>, <code class="inline">code</code> (required).</li>
+          <li><code class="inline">full_name</code> — required only when the phone has no account yet.</li>
+          <li><code class="inline">email</code> — optional, new accounts only.</li>
+          <li><code class="inline">device_label</code>, <code class="inline">user_agent</code> — optional.</li>
+        </ul>
+        <h4>Responses</h4>
+        <ul>
+          <li><code class="inline">200</code> — <code class="inline">user</code>, <code class="inline">access_token</code>, <code class="inline">refresh_token</code>, <code class="inline">expires_in</code>.</li>
+          <li><code class="inline">401</code> / <code class="inline">403</code> / <code class="inline">404</code> / <code class="inline">409</code> / <code class="inline">422</code> / <code class="inline">429</code> — see overview for semantics.</li>
+        </ul>
+        <p class="note">Existing user:</p>
+        <pre>{ "phone": "+1 555 123 4567", "code": "123456" }</pre>
+        <p class="note">New user:</p>
+        <pre>{
+  "phone": "+1 555 987 6543",
+  "code": "123456",
+  "full_name": "Ada Lovelace",
+  "email": "ada@example.com"
+}</pre>
+        <h4>Success response</h4>
+        <pre>{
+  "user": {
+    "id": "uuid",
+    "phone": "15551234567",
+    "email": null,
+    "full_name": "Ada Lovelace",
+    "is_active": true,
+    "created_at": "2026-01-01 12:00:00"
+  },
+  "access_token": "…",
+  "refresh_token": "…",
+  "expires_in": 900
+}</pre>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/auth/otp/verify" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+15551234567","code":"123456"}'</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="post-auth-refresh" data-section="post-auth-refresh">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/auth/refresh</code></h3>
+        <p>New access JWT and a new refresh token; previous refresh token is revoked.</p>
+        <h4>Body</h4>
+        <p><code class="inline">refresh_token</code> (required). Optional <code class="inline">device_label</code>, <code class="inline">user_agent</code>.</p>
+        <h4>Errors</h4>
+        <p><code class="inline">401</code> invalid/expired refresh; <code class="inline">403</code> disabled user.</p>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token":"YOUR_REFRESH_TOKEN"}'</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="post-auth-logout" data-section="post-auth-logout">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/auth/logout</code></h3>
+        <p>Revokes the given refresh token for this device/session. Other devices unchanged.</p>
+        <pre>{ "refresh_token": "…" }</pre>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/auth/logout" \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token":"YOUR_REFRESH_TOKEN"}'</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="get-auth-me" data-section="get-auth-me">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/auth/me</code></h3>
+        <p><strong>Header:</strong> <code class="inline">Authorization: Bearer &lt;access_token&gt;</code></p>
+        <p><strong>200</strong> — <code class="inline">{ "user": { … } }</code>. <strong>401</strong> / <strong>403</strong> — invalid token or inactive user.</p>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS "<span class="cu-base"></span>/v1/auth/me" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="cors" data-section="cors">
+        <h3>CORS</h3>
+        <p>Preflight <code class="inline">OPTIONS</code> returns <code class="inline">204</code>. Methods and headers are set in <code class="inline">SecurityHeaders</code>; allowlist via <code class="inline">CORS_ALLOW_ORIGINS</code> in <code class="inline">.env</code>.</p>
+      </section>
+
+      <section class="doc-section" id="schema" data-section="schema">
+        <h3>Database schema</h3>
+        <p>MySQL definitions: <code class="inline">database/schema.sql</code> — tables <code class="inline">users</code>, <code class="inline">phone_otp_challenges</code>, <code class="inline">refresh_tokens</code>. Optional upgrades: <code class="inline">database/migrations/</code>.</p>
+      </section>
+    </main>
+  </div>
 
   <script>
-    fetch(new URL('/v1/health', window.location.origin))
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        document.getElementById('sample').textContent = JSON.stringify(j, null, 2);
-      })
-      .catch(function () {
-        document.getElementById('sample').textContent =
-          '// Run: php -S localhost:8000 -t public\n// Then open this page from that server.';
+    (function () {
+      var baseInput = document.getElementById("baseUrl");
+      var stored = "";
+      try {
+        stored = localStorage.getItem("suprmorning_api_base") || "";
+      } catch (e) {}
+      var defaultBase =
+        window.location.origin &&
+        window.location.origin !== "null" &&
+        !window.location.origin.startsWith("file:")
+          ? window.location.origin
+          : "http://localhost:8000";
+      baseInput.value = stored || defaultBase;
+
+      function base() {
+        var v = (baseInput.value || "").trim().replace(/\/+$/, "");
+        return v || defaultBase;
+      }
+
+      function fillCurlBases() {
+        var b = base();
+        document.querySelectorAll(".cu-base").forEach(function (el) {
+          el.textContent = b;
+        });
+      }
+
+      baseInput.addEventListener("input", function () {
+        try {
+          localStorage.setItem("suprmorning_api_base", baseInput.value.trim());
+        } catch (e) {}
+        fillCurlBases();
       });
+      fillCurlBases();
+
+      document.querySelectorAll(".copy-curl").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var wrap = btn.closest(".curl");
+          var pre = wrap && wrap.querySelector(".curl-snippet");
+          if (!pre) return;
+          var text = pre.innerText || pre.textContent;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              var t = btn.textContent;
+              btn.textContent = "Copied";
+              setTimeout(function () {
+                btn.textContent = t;
+              }, 1500);
+            });
+          }
+        });
+      });
+
+      var links = Array.prototype.slice.call(
+        document.querySelectorAll(".sidebar nav a[data-section]")
+      );
+      var sections = Array.prototype.slice.call(
+        document.querySelectorAll(".doc-section[data-section]")
+      );
+
+      function setActive(id) {
+        links.forEach(function (a) {
+          a.classList.toggle("active", a.getAttribute("data-section") === id);
+        });
+      }
+
+      if ("IntersectionObserver" in window && sections.length) {
+        var obs = new IntersectionObserver(
+          function (entries) {
+            entries.sort(function (a, b) {
+              return (b.intersectionRatio || 0) - (a.intersectionRatio || 0);
+            });
+            var top = entries.find(function (e) {
+              return e.isIntersecting && e.intersectionRatio > 0;
+            });
+            if (top && top.target.getAttribute("data-section")) {
+              setActive(top.target.getAttribute("data-section"));
+            }
+          },
+          { root: null, rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.1, 0.25, 0.5] }
+        );
+        sections.forEach(function (s) {
+          obs.observe(s);
+        });
+      }
+
+      links.forEach(function (a) {
+        a.addEventListener("click", function () {
+          var id = a.getAttribute("data-section");
+          if (id) setActive(id);
+        });
+      });
+
+      function syncFromHash() {
+        var h = (location.hash || "").replace(/^#/, "");
+        if (!h) {
+          setActive("overview");
+          return;
+        }
+        var sec = document.getElementById(h);
+        var ds = sec && sec.getAttribute("data-section");
+        if (ds) setActive(ds);
+      }
+      window.addEventListener("hashchange", syncFromHash);
+      syncFromHash();
+    })();
   </script>
 </body>
 </html>

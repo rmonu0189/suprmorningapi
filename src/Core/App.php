@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Core;
 
-use App\Controllers\HealthController;
+use App\Controllers\AuthController;
 
-require_once __DIR__ . '/../Controllers/HealthController.php';
+require_once __DIR__ . '/../Controllers/AuthController.php';
 require_once __DIR__ . '/../Core/Exceptions/HttpException.php';
 require_once __DIR__ . '/../Core/Exceptions/ValidationException.php';
 require_once __DIR__ . '/ExceptionHandler.php';
@@ -21,6 +21,12 @@ require_once __DIR__ . '/Uuid.php';
 require_once __DIR__ . '/../Middleware/AuthMiddleware.php';
 require_once __DIR__ . '/../Security/RateLimiter.php';
 require_once __DIR__ . '/../Security/LoginLockout.php';
+require_once __DIR__ . '/../Core/Phone.php';
+require_once __DIR__ . '/../Repositories/UserRepository.php';
+require_once __DIR__ . '/../Repositories/RefreshTokenRepository.php';
+require_once __DIR__ . '/../Repositories/PhoneOtpChallengeRepository.php';
+require_once __DIR__ . '/../Services/OtpNotifier.php';
+require_once __DIR__ . '/../Services/AuthService.php';
 
 final class App
 {
@@ -39,10 +45,22 @@ final class App
             return;
         }
 
-        $health = new HealthController();
+        $auth = new AuthController();
 
-        $router->add('GET', self::API_PREFIX . '/health', static function () use ($health): void {
-            $health();
+        $router->add('POST', self::API_PREFIX . '/auth/otp/send', static function (Request $r) use ($auth): void {
+            $auth->otpSend($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/auth/otp/verify', static function (Request $r) use ($auth): void {
+            $auth->otpVerify($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/auth/refresh', static function (Request $r) use ($auth): void {
+            $auth->refresh($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/auth/logout', static function (Request $r) use ($auth): void {
+            $auth->logout($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/auth/me', static function (Request $r) use ($auth): void {
+            $auth->me($r);
         });
 
         $router->dispatch($request);

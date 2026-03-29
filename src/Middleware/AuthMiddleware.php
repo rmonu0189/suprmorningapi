@@ -7,11 +7,12 @@ namespace App\Middleware;
 use App\Core\Jwt;
 use App\Core\Request;
 use App\Core\Response;
+use App\Repositories\UserRepository;
 
 final class AuthMiddleware
 {
     /**
-     * Validates Bearer JWT. Add a repository check (e.g. user active in DB) when you wire auth routes.
+     * Validates Bearer JWT and that the user exists and is active.
      */
     public static function requireAuth(Request $request): ?array
     {
@@ -31,6 +32,17 @@ final class AuthMiddleware
         $sub = (string) ($claims['sub'] ?? '');
         if ($sub === '') {
             Response::json(['error' => 'Unauthorized'], 401);
+            return null;
+        }
+
+        $active = UserRepository::findActiveFlag($sub);
+        if ($active === null) {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return null;
+        }
+
+        if (!$active) {
+            Response::json(['error' => 'Account is disabled'], 403);
             return null;
         }
 
