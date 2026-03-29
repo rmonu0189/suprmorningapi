@@ -330,7 +330,7 @@ final class AuthService
     }
 
     /**
-     * @param array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, created_at: string} $user
+     * @param array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string} $user
      * @return array{user: array<string, mixed>, access_token: string, refresh_token: string, expires_in: int}
      */
     private function issueTokensForUser(
@@ -343,8 +343,10 @@ final class AuthService
             throw new HttpException('Account is disabled', 403);
         }
 
+        $role = (string) ($user['role'] ?? UserRepository::DEFAULT_ROLE);
+
         $accessTtl = $this->accessTtlSeconds();
-        $access = Jwt::issue(['sub' => $userId], $accessTtl);
+        $access = Jwt::issue(['sub' => $userId, 'role' => $role], $accessTtl);
 
         $raw = bin2hex(random_bytes(32));
         $refreshHash = hash('sha256', $raw);
@@ -366,6 +368,7 @@ final class AuthService
                 'phone' => $user['phone'],
                 'email' => $user['email'],
                 'full_name' => $user['full_name'],
+                'role' => $role,
                 'is_active' => $user['is_active'],
                 'created_at' => $user['created_at'],
             ],

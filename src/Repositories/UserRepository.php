@@ -9,6 +9,8 @@ use PDO;
 
 final class UserRepository
 {
+    public const DEFAULT_ROLE = 'user';
+
     /**
      * @return null if no user; true/false for is_active when row exists
      */
@@ -27,11 +29,11 @@ final class UserRepository
         return (bool) (int) $v;
     }
 
-    /** @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, created_at: string}|null */
+    /** @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}|null */
     public static function findById(string $id): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, created_at FROM users WHERE id = :id LIMIT 1'
+            'SELECT id, phone, email, full_name, is_active, role, created_at FROM users WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -41,6 +43,7 @@ final class UserRepository
         }
 
         $fn = $row['full_name'];
+        $role = $row['role'] ?? self::DEFAULT_ROLE;
 
         return [
             'id' => (string) $row['id'],
@@ -48,6 +51,7 @@ final class UserRepository
             'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
             'full_name' => $fn !== null && $fn !== '' ? (string) $fn : null,
             'is_active' => (bool) (int) $row['is_active'],
+            'role' => $role !== null && $role !== '' ? (string) $role : self::DEFAULT_ROLE,
             'created_at' => (string) $row['created_at'],
         ];
     }
@@ -87,11 +91,17 @@ final class UserRepository
         return (bool) $stmt->fetchColumn();
     }
 
-    public static function insert(string $id, string $phone, ?string $email, ?string $fullName, bool $isActive): void
-    {
+    public static function insert(
+        string $id,
+        string $phone,
+        ?string $email,
+        ?string $fullName,
+        bool $isActive,
+        string $role = self::DEFAULT_ROLE
+    ): void {
         $stmt = Database::connection()->prepare(
-            'INSERT INTO users (id, phone, email, full_name, is_active)
-             VALUES (:id, :phone, :email, :full_name, :is_active)'
+            'INSERT INTO users (id, phone, email, full_name, is_active, role)
+             VALUES (:id, :phone, :email, :full_name, :is_active, :role)'
         );
         $stmt->execute([
             'id' => $id,
@@ -99,6 +109,7 @@ final class UserRepository
             'email' => $email,
             'full_name' => $fullName,
             'is_active' => $isActive ? 1 : 0,
+            'role' => $role !== '' ? $role : self::DEFAULT_ROLE,
         ]);
     }
 }

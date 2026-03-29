@@ -282,7 +282,7 @@
         <h3>Token flow &amp; overview</h3>
         <p>Passwordless sign-in with one flow: <strong>send</strong> an OTP to any phone (new or existing). <strong>Verify</strong> the code; if no user exists for that phone, the server creates one (optional <code class="inline">full_name</code> and <code class="inline">email</code> on the verify request), then returns the same token shape as for returning users.</p>
         <p>By default OTPs are logged to <code class="inline">storage/logs/otp.log</code> — replace with SMS in production (<code class="inline">OtpNotifier</code>).</p>
-        <p><strong>Access JWT</strong> — short-lived. Send as <code class="inline">Authorization: Bearer &lt;access_token&gt;</code>. Payload includes <code class="inline">sub</code> (user id) and <code class="inline">typ: "access"</code>.</p>
+        <p><strong>Access JWT</strong> — short-lived. Send as <code class="inline">Authorization: Bearer &lt;access_token&gt;</code>. Payload includes <code class="inline">sub</code> (user id), <code class="inline">role</code> (e.g. <code class="inline">user</code>), and <code class="inline">typ: "access"</code>.</p>
         <p><strong>Refresh token</strong> — opaque hex string, stored server-side as a hash. Use with <code class="inline">POST /v1/auth/refresh</code> and <code class="inline">POST /v1/auth/logout</code>. Each successful refresh <strong>rotates</strong> the refresh token; persist the new one.</p>
         <h4>Environment</h4>
         <ul>
@@ -350,6 +350,7 @@
     "phone": "15551234567",
     "email": null,
     "full_name": null,
+    "role": "user",
     "is_active": true,
     "created_at": "2026-01-01 12:00:00"
   },
@@ -410,7 +411,7 @@
 
       <section class="doc-section" id="schema" data-section="schema">
         <h3>Database schema</h3>
-        <p>MySQL definitions: <code class="inline">database/schema.sql</code> — tables <code class="inline">users</code>, <code class="inline">phone_otp_challenges</code>, <code class="inline">refresh_tokens</code>. Optional upgrades: <code class="inline">database/migrations/</code>.</p>
+        <p>MySQL definitions: <code class="inline">database/schema.sql</code> — tables <code class="inline">users</code> (includes <code class="inline">role</code>, default <code class="inline">user</code>), <code class="inline">phone_otp_challenges</code>, <code class="inline">refresh_tokens</code>. Optional upgrades: <code class="inline">database/migrations/</code>.</p>
       </section>
     </main>
   </div>
