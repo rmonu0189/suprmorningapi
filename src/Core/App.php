@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Controllers\AuthController;
+use App\Controllers\PagesController;
 
 require_once __DIR__ . '/../Controllers/AuthController.php';
+require_once __DIR__ . '/../Controllers/PagesController.php';
 require_once __DIR__ . '/../Core/Exceptions/HttpException.php';
 require_once __DIR__ . '/../Core/Exceptions/ValidationException.php';
 require_once __DIR__ . '/ExceptionHandler.php';
@@ -27,6 +29,7 @@ require_once __DIR__ . '/../Repositories/RefreshTokenRepository.php';
 require_once __DIR__ . '/../Repositories/PhoneOtpChallengeRepository.php';
 require_once __DIR__ . '/../Services/OtpNotifier.php';
 require_once __DIR__ . '/../Services/AuthService.php';
+require_once __DIR__ . '/../Repositories/PageRepository.php';
 
 final class App
 {
@@ -46,6 +49,20 @@ final class App
         }
 
         $auth = new AuthController();
+        $pages = new PagesController();
+
+        $router->add('GET', self::API_PREFIX . '/pages', static function (Request $r) use ($pages): void {
+            $pages->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/pages', static function (Request $r) use ($pages): void {
+            $pages->create($r);
+        });
+        $router->add('PUT', self::API_PREFIX . '/pages', static function (Request $r) use ($pages): void {
+            $pages->update($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/pages', static function (Request $r) use ($pages): void {
+            $pages->delete($r);
+        });
 
         $router->add('POST', self::API_PREFIX . '/auth/otp/send', static function (Request $r) use ($auth): void {
             $auth->otpSend($r);
