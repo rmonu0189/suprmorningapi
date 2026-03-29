@@ -45,7 +45,7 @@ final class PagesController
 
     public function create(Request $request): void
     {
-        if (!$this->requireAdmin($request)) {
+        if (AuthMiddleware::requireAdmin($request) === null) {
             return;
         }
 
@@ -88,7 +88,7 @@ final class PagesController
 
     public function update(Request $request): void
     {
-        if (!$this->requireAdmin($request)) {
+        if (AuthMiddleware::requireAdmin($request) === null) {
             return;
         }
 
@@ -159,7 +159,7 @@ final class PagesController
 
     public function delete(Request $request): void
     {
-        if (!$this->requireAdmin($request)) {
+        if (AuthMiddleware::requireAdmin($request) === null) {
             return;
         }
 
@@ -183,15 +183,5 @@ final class PagesController
         }
 
         Response::json(['ok' => true]);
-    }
-
-    private function requireAdmin(Request $request): bool
-    {
-        $claims = AuthMiddleware::requireAuth($request);
-        if ($claims === null) {
-            return false;
-        }
-
-        return AuthMiddleware::requireRole($claims, 'admin');
     }
 }

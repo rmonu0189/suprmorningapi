@@ -311,6 +311,13 @@
           <a href="#put-pages" data-section="put-pages"><span class="method-tag">PUT</span> /pages</a>
           <a href="#delete-pages" data-section="delete-pages"><span class="method-tag">DEL</span> /pages</a>
         </nav>
+        <nav aria-label="Brands catalog endpoints">
+          <p class="nav-heading">Brands</p>
+          <a href="#get-brands" data-section="get-brands"><span class="method-tag">GET</span> /brands</a>
+          <a href="#post-brands" data-section="post-brands"><span class="method-tag">POST</span> /brands</a>
+          <a href="#put-brands" data-section="put-brands"><span class="method-tag">PUT</span> /brands</a>
+          <a href="#delete-brands" data-section="delete-brands"><span class="method-tag">DEL</span> /brands</a>
+        </nav>
         <nav aria-label="Other reference">
           <p class="nav-heading">Reference</p>
           <a href="#cors" data-section="cors">CORS</a>
@@ -322,14 +329,15 @@
     <main class="main">
       <header>
         <h2>API reference</h2>
-        <p class="lede">JSON under <code class="inline">/v1</code>. Writable routes expect <code class="inline">Content-Type: application/json</code>. Set <strong>Base URL</strong> in the sidebar; example cURL commands use it below.</p>
+        <p class="lede">JSON under <code class="inline">/v1</code>. Writable routes expect <code class="inline">Content-Type: application/json</code>. <strong>Admin mutations</strong> (create/update/delete for CMS and catalog) require an access JWT with <code class="inline">role: "admin"</code>. Set <strong>Base URL</strong> in the sidebar; example cURL commands use it below.</p>
       </header>
 
       <section class="doc-section" id="overview" data-section="overview">
         <h3>Token flow &amp; overview</h3>
         <p>Passwordless sign-in with one flow: <strong>send</strong> an OTP to any phone (new or existing). <strong>Verify</strong> the code; if no user exists for that phone, the server creates one (optional <code class="inline">full_name</code> and <code class="inline">email</code> on the verify request), then returns the same token shape as for returning users.</p>
         <p>By default OTPs are logged to <code class="inline">storage/logs/otp.log</code> — replace with SMS in production (<code class="inline">OtpNotifier</code>).</p>
-        <p><strong>Access JWT</strong> — short-lived. Send as <code class="inline">Authorization: Bearer &lt;access_token&gt;</code>. Payload includes <code class="inline">sub</code> (user id), <code class="inline">role</code> (e.g. <code class="inline">user</code>), and <code class="inline">typ: "access"</code>.</p>
+        <p><strong>Access JWT</strong> — short-lived. Send as <code class="inline">Authorization: Bearer &lt;access_token&gt;</code>. Payload includes <code class="inline">sub</code> (user id), <code class="inline">role</code> (e.g. <code class="inline">user</code> or <code class="inline">admin</code>), and <code class="inline">typ: "access"</code>.</p>
+        <p><strong>Admin-only APIs</strong> — Endpoints that <strong>create, update, or delete</strong> CMS or catalog data (currently <code class="inline">POST</code>, <code class="inline">PUT</code>, and <code class="inline">DELETE</code> on <code class="inline">/v1/pages</code> and <code class="inline">/v1/brands</code>) require the access JWT’s <code class="inline">role</code> claim to be exactly <code class="inline">"admin"</code>. Set <code class="inline">users.role = 'admin'</code> in MySQL, then sign in again (or refresh) so the new token includes that role. Authenticated non-admins receive <code class="inline">403</code> with <code class="inline">{ "error": "Forbidden" }</code>. Missing or invalid tokens receive <code class="inline">401</code>.</p>
         <p><strong>Refresh token</strong> — opaque hex string, stored server-side as a hash. Use with <code class="inline">POST /v1/auth/refresh</code> and <code class="inline">POST /v1/auth/logout</code>. Each successful refresh <strong>rotates</strong> the refresh token; persist the new one.</p>
         <h4>Environment</h4>
         <ul>
@@ -786,6 +794,184 @@
         </div>
       </section>
 
+      <section class="doc-section" id="get-brands" data-section="get-brands">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/brands</code></h3>
+        <p><strong>Public</strong> — no <code class="inline">Authorization</code> header required.</p>
+        <h4>Query</h4>
+        <ul>
+          <li>Omit query → <code class="inline">{ "brands": [ … ] }</code> — all rows, ordered by <code class="inline">name</code>, then <code class="inline">id</code>.</li>
+          <li><code class="inline">?id=&lt;uuid&gt;</code> — single row <code class="inline">{ "brand": { … } }</code>.</li>
+        </ul>
+        <h4>Brand shape</h4>
+        <p><code class="inline">id</code> (uuid), <code class="inline">created_at</code>, <code class="inline">name</code>, <code class="inline">about</code>, <code class="inline">logo</code> (nullable strings), <code class="inline">status</code> (boolean).</p>
+        <h4>Errors</h4>
+        <ul>
+          <li><code class="inline">404</code> — when <code class="inline">?id=</code> is set but no brand exists.</li>
+          <li><code class="inline">422</code> — invalid <code class="inline">id</code> (not a UUID).</li>
+        </ul>
+        <details class="sample-details">
+          <summary>Sample response — <code class="inline">200 OK</code> (list)</summary>
+          <pre>{
+  "brands": [
+    {
+      "id": "bbbbbbbb-1111-2222-3333-cccccccccccc",
+      "created_at": "2026-03-29 12:00:00",
+      "name": "Acme Foods",
+      "about": "Fresh daily essentials.",
+      "logo": "https://cdn.example.com/brands/acme.png",
+      "status": true
+    }
+  ]
+}</pre>
+        </details>
+        <details class="sample-details">
+          <summary>Sample response — <code class="inline">200 OK</code> (single, <code class="inline">?id=&lt;uuid&gt;</code>)</summary>
+          <pre>{
+  "brand": {
+    "id": "bbbbbbbb-1111-2222-3333-cccccccccccc",
+    "created_at": "2026-03-29 12:00:00",
+    "name": "Acme Foods",
+    "about": "Fresh daily essentials.",
+    "logo": "https://cdn.example.com/brands/acme.png",
+    "status": true
+  }
+}</pre>
+        </details>
+        <details class="sample-details">
+          <summary>Sample error — <code class="inline">404</code> (unknown id)</summary>
+          <pre>{ "error": "Not Found" }</pre>
+        </details>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS "<span class="cu-base"></span>/v1/brands"</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="post-brands" data-section="post-brands">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/brands</code></h3>
+        <p><strong>Admin only</strong> — <code class="inline">Authorization: Bearer &lt;access_token&gt;</code> with JWT claim <code class="inline">role: "admin"</code>.</p>
+        <h4>Body</h4>
+        <ul>
+          <li><code class="inline">name</code> (required).</li>
+          <li><code class="inline">about</code>, <code class="inline">logo</code> — optional string or <code class="inline">null</code>.</li>
+          <li><code class="inline">status</code> — optional boolean (default <code class="inline">true</code>).</li>
+        </ul>
+        <h4>Responses</h4>
+        <ul>
+          <li><code class="inline">201</code> — <code class="inline">{ "brand": { … } }</code>.</li>
+          <li><code class="inline">401</code> / <code class="inline">403</code> — missing token or not admin.</li>
+          <li><code class="inline">422</code> — validation.</li>
+        </ul>
+        <details class="sample-details">
+          <summary>Example request body</summary>
+          <pre>{
+  "name": "Acme Foods",
+  "about": "Fresh daily essentials.",
+  "logo": "https://cdn.example.com/brands/acme.png",
+  "status": true
+}</pre>
+        </details>
+        <details class="sample-details">
+          <summary>Sample response — <code class="inline">201 Created</code></summary>
+          <pre>{
+  "brand": {
+    "id": "bbbbbbbb-1111-2222-3333-cccccccccccc",
+    "created_at": "2026-03-29 12:00:00",
+    "name": "Acme Foods",
+    "about": "Fresh daily essentials.",
+    "logo": "https://cdn.example.com/brands/acme.png",
+    "status": true
+  }
+}</pre>
+        </details>
+        <details class="sample-details">
+          <summary>Sample error — <code class="inline">403</code> (not admin)</summary>
+          <pre>{ "error": "Forbidden" }</pre>
+        </details>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/brands" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ADMIN_ACCESS_TOKEN" \
+  -d '{"name":"Acme Foods","about":"Fresh daily essentials.","status":true}'</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="put-brands" data-section="put-brands">
+        <h3><span class="method method-put">PUT</span> <code class="path">/v1/brands</code></h3>
+        <p><strong>Admin only</strong> — same auth as <code class="inline">POST /v1/brands</code>. Partial update: send <code class="inline">id</code> plus any of <code class="inline">name</code>, <code class="inline">about</code>, <code class="inline">logo</code>, <code class="inline">status</code> (at least one field besides <code class="inline">id</code>).</p>
+        <h4>Responses</h4>
+        <ul>
+          <li><code class="inline">200</code> — <code class="inline">{ "brand": { … } }</code>.</li>
+          <li><code class="inline">404</code> — unknown <code class="inline">id</code>.</li>
+          <li><code class="inline">401</code> / <code class="inline">403</code> — auth / not admin.</li>
+          <li><code class="inline">422</code> — validation.</li>
+        </ul>
+        <details class="sample-details">
+          <summary>Example request body</summary>
+          <pre>{ "id": "bbbbbbbb-1111-2222-3333-cccccccccccc", "name": "Acme Foods Ltd", "status": false }</pre>
+        </details>
+        <details class="sample-details">
+          <summary>Sample response — <code class="inline">200 OK</code></summary>
+          <pre>{
+  "brand": {
+    "id": "bbbbbbbb-1111-2222-3333-cccccccccccc",
+    "created_at": "2026-03-29 12:00:00",
+    "name": "Acme Foods Ltd",
+    "about": "Fresh daily essentials.",
+    "logo": "https://cdn.example.com/brands/acme.png",
+    "status": false
+  }
+}</pre>
+        </details>
+        <details class="sample-details">
+          <summary>Sample error — <code class="inline">404</code></summary>
+          <pre>{ "error": "Not Found" }</pre>
+        </details>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS -X PUT "<span class="cu-base"></span>/v1/brands" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ADMIN_ACCESS_TOKEN" \
+  -d '{"id":"BRAND_UUID","name":"Acme Foods Ltd"}'</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="delete-brands" data-section="delete-brands">
+        <h3><span class="method method-delete">DELETE</span> <code class="path">/v1/brands</code></h3>
+        <p><strong>Admin only</strong> — remove one brand by id (<code class="inline">?id=</code> or JSON body). Fails with <code class="inline">409</code> if any <code class="inline">products</code> row still references this brand.</p>
+        <h4>Parameters</h4>
+        <ul>
+          <li><code class="inline">?id=&lt;uuid&gt;</code> <strong>or</strong> JSON body <code class="inline">{ "id": "…" }</code>.</li>
+        </ul>
+        <h4>Responses</h4>
+        <ul>
+          <li><code class="inline">200</code> — <code class="inline">{ "ok": true }</code>.</li>
+          <li><code class="inline">404</code> — brand not found.</li>
+          <li><code class="inline">409</code> — brand has products; remove or reassign them first.</li>
+          <li><code class="inline">422</code> — missing/invalid id.</li>
+          <li><code class="inline">401</code> / <code class="inline">403</code> — auth / not admin.</li>
+        </ul>
+        <details class="sample-details">
+          <summary>Sample response — <code class="inline">200 OK</code></summary>
+          <pre>{ "ok": true }</pre>
+        </details>
+        <details class="sample-details">
+          <summary>Sample error — <code class="inline">409</code> (brand still has products)</summary>
+          <pre>{
+  "error": "Conflict",
+  "errors": {
+    "brand": "Cannot delete a brand that still has products. Remove or reassign products first."
+  }
+}</pre>
+        </details>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS -X DELETE "<span class="cu-base"></span>/v1/brands?id=BRAND_UUID" \
+  -H "Authorization: Bearer YOUR_ADMIN_ACCESS_TOKEN"</pre>
+        </div>
+      </section>
+
       <section class="doc-section" id="cors" data-section="cors">
         <h3>CORS</h3>
         <p>Preflight <code class="inline">OPTIONS</code> returns <code class="inline">204</code>. Methods and headers are set in <code class="inline">SecurityHeaders</code>; allowlist via <code class="inline">CORS_ALLOW_ORIGINS</code> in <code class="inline">.env</code>.</p>
@@ -793,7 +979,7 @@
 
       <section class="doc-section" id="schema" data-section="schema">
         <h3>Database schema</h3>
-        <p>MySQL definitions: <code class="inline">database/schema.sql</code> — tables <code class="inline">users</code> (includes <code class="inline">role</code>, default <code class="inline">user</code>), <code class="inline">phone_otp_challenges</code>, <code class="inline">refresh_tokens</code>, <code class="inline">pages</code> (<code class="inline">id</code>, <code class="inline">card_index</code>, <code class="inline">page_name</code>, <code class="inline">type</code>, <code class="inline">content</code> JSON). Optional upgrades: <code class="inline">database/migrations/</code>.</p>
+        <p>MySQL definitions: <code class="inline">database/schema.sql</code> — tables <code class="inline">users</code> (includes <code class="inline">role</code>, default <code class="inline">user</code>), <code class="inline">phone_otp_challenges</code>, <code class="inline">refresh_tokens</code>, <code class="inline">pages</code> (<code class="inline">id</code>, <code class="inline">card_index</code>, <code class="inline">page_name</code>, <code class="inline">type</code>, <code class="inline">content</code> JSON), and catalog tables <code class="inline">brands</code>, <code class="inline">products</code>, <code class="inline">variants</code>, <code class="inline">inventory</code>. Optional upgrades: <code class="inline">database/migrations/</code>.</p>
       </section>
     </main>
   </div>

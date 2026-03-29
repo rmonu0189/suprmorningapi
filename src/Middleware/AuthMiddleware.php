@@ -49,6 +49,22 @@ final class AuthMiddleware
         return $claims;
     }
 
+    /**
+     * Valid access JWT, active user, and role claim exactly "admin".
+     * Sends 401 / 403 and returns null on failure.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function requireAdmin(Request $request): ?array
+    {
+        $claims = self::requireAuth($request);
+        if ($claims === null) {
+            return null;
+        }
+
+        return self::requireRole($claims, 'admin') ? $claims : null;
+    }
+
     public static function requireRole(array $claims, string $role): bool
     {
         if (($claims['role'] ?? null) !== $role) {

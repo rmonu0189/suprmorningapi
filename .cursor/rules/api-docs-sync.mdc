@@ -1,0 +1,19 @@
+---
+description: Keep public API reference in sync when routes or contracts change
+alwaysApply: true
+---
+
+# API docs (`public/api-docs.html`)
+
+Whenever you add, remove, or materially change HTTP API behavior, update **`public/api-docs.html`** in the **same** set of changes.
+
+Include:
+
+- **Sidebar** — `nav` links with correct `href` anchors and matching `data-section` values.
+- **Sections** — one `section.doc-section` per endpoint (or logical group), with `id` and `data-section` aligned to the sidebar.
+- **Content** — method, path under `/v1`, auth (public vs admin JWT), query/body fields, status codes, and notes that match `src/Core/App.php` and the controller.
+- **Samples** — use existing patterns: collapsible `details.sample-details` for JSON examples; a `.curl` block with `span.cu-base` for the base URL when other endpoints have cURL.
+
+Trigger this rule when editing **`src/Core/App.php`**, **`src/Controllers/*`**, or anything that changes request/response shapes clients rely on. Do not leave the HTML docs outdated after route work.
+
+For **admin** write routes, document the `role: "admin"` requirement and align with **`AuthMiddleware::requireAdmin`** (see the admin API rule).

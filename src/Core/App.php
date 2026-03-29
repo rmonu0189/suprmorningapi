@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Controllers\AuthController;
+use App\Controllers\BrandsController;
 use App\Controllers\PagesController;
 
 require_once __DIR__ . '/../Controllers/AuthController.php';
+require_once __DIR__ . '/../Controllers/BrandsController.php';
 require_once __DIR__ . '/../Controllers/PagesController.php';
 require_once __DIR__ . '/../Core/Exceptions/HttpException.php';
 require_once __DIR__ . '/../Core/Exceptions/ValidationException.php';
@@ -30,6 +32,7 @@ require_once __DIR__ . '/../Repositories/PhoneOtpChallengeRepository.php';
 require_once __DIR__ . '/../Services/OtpNotifier.php';
 require_once __DIR__ . '/../Services/AuthService.php';
 require_once __DIR__ . '/../Repositories/PageRepository.php';
+require_once __DIR__ . '/../Repositories/BrandRepository.php';
 
 final class App
 {
@@ -50,6 +53,20 @@ final class App
 
         $auth = new AuthController();
         $pages = new PagesController();
+        $brands = new BrandsController();
+
+        $router->add('GET', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
+            $brands->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
+            $brands->create($r);
+        });
+        $router->add('PUT', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
+            $brands->update($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
+            $brands->delete($r);
+        });
 
         $router->add('GET', self::API_PREFIX . '/pages', static function (Request $r) use ($pages): void {
             $pages->index($r);

@@ -1,0 +1,16 @@
+---
+description: Admin CMS/catalog mutations must enforce JWT role admin
+alwaysApply: true
+---
+
+# Admin-only HTTP APIs
+
+Any route that **creates, updates, or deletes** CMS content, catalog data, or other privileged resources **must** require an access JWT whose `role` claim is exactly **`admin`**.
+
+**Implementation (this repo):**
+
+- Call `AuthMiddleware::requireAdmin($request)` at the start of the handler. If it returns `null`, **return immediately** (response already sent: `401` or `403`).
+- Do **not** duplicate ad-hoc role checks; extend `AuthMiddleware` if the policy changes.
+- **Read-only** public endpoints stay unauthenticated unless product requirements say otherwise.
+
+When adding routes in `App.php`, pair each admin write endpoint with `requireAdmin` in its controller (or shared middleware). Update `public/api-docs.html` to state **Admin only** and the `403` behavior (see project api-docs rule).
