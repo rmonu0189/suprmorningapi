@@ -27,7 +27,7 @@ final class UserRepository
         return (bool) (int) $v;
     }
 
-    /** @return array{id: string, phone: string, email: ?string, full_name: string, is_active: bool, created_at: string}|null */
+    /** @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, created_at: string}|null */
     public static function findById(string $id): ?array
     {
         $stmt = Database::connection()->prepare(
@@ -40,11 +40,13 @@ final class UserRepository
             return null;
         }
 
+        $fn = $row['full_name'];
+
         return [
             'id' => (string) $row['id'],
             'phone' => (string) $row['phone'],
             'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
-            'full_name' => (string) $row['full_name'],
+            'full_name' => $fn !== null && $fn !== '' ? (string) $fn : null,
             'is_active' => (bool) (int) $row['is_active'],
             'created_at' => (string) $row['created_at'],
         ];
@@ -85,7 +87,7 @@ final class UserRepository
         return (bool) $stmt->fetchColumn();
     }
 
-    public static function insert(string $id, string $phone, ?string $email, string $fullName, bool $isActive): void
+    public static function insert(string $id, string $phone, ?string $email, ?string $fullName, bool $isActive): void
     {
         $stmt = Database::connection()->prepare(
             'INSERT INTO users (id, phone, email, full_name, is_active)

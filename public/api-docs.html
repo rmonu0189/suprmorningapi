@@ -280,7 +280,7 @@
 
       <section class="doc-section" id="overview" data-section="overview">
         <h3>Token flow &amp; overview</h3>
-        <p>Passwordless sign-in with one flow: <strong>send</strong> an OTP to any phone (new or existing). <strong>Verify</strong> the code; if no user exists for that phone, the server creates one using <code class="inline">full_name</code> (and optional <code class="inline">email</code>) from the verify request, then returns the same token shape as for returning users.</p>
+        <p>Passwordless sign-in with one flow: <strong>send</strong> an OTP to any phone (new or existing). <strong>Verify</strong> the code; if no user exists for that phone, the server creates one (optional <code class="inline">full_name</code> and <code class="inline">email</code> on the verify request), then returns the same token shape as for returning users.</p>
         <p>By default OTPs are logged to <code class="inline">storage/logs/otp.log</code> — replace with SMS in production (<code class="inline">OtpNotifier</code>).</p>
         <p><strong>Access JWT</strong> — short-lived. Send as <code class="inline">Authorization: Bearer &lt;access_token&gt;</code>. Payload includes <code class="inline">sub</code> (user id) and <code class="inline">typ: "access"</code>.</p>
         <p><strong>Refresh token</strong> — opaque hex string, stored server-side as a hash. Use with <code class="inline">POST /v1/auth/refresh</code> and <code class="inline">POST /v1/auth/logout</code>. Each successful refresh <strong>rotates</strong> the refresh token; persist the new one.</p>
@@ -288,6 +288,7 @@
         <ul>
           <li><code class="inline">JWT_ACCESS_TTL_SECONDS</code>, <code class="inline">JWT_REFRESH_TTL_SECONDS</code>, <code class="inline">JWT_SECRET</code>, <code class="inline">JWT_ISSUER</code>, <code class="inline">JWT_AUDIENCE</code></li>
           <li><code class="inline">OTP_LENGTH</code>, <code class="inline">OTP_TTL_SECONDS</code>, <code class="inline">OTP_MAX_ATTEMPTS</code>, <code class="inline">OTP_LOG_TO_FILE</code>, <code class="inline">OTP_RETURN_CODE_IN_RESPONSE</code> (dev only)</li>
+          <li><code class="inline">OTP_ENABLE_FIXED_TEST_OTP</code>, <code class="inline">OTP_TEST_CODE</code>, <code class="inline">OTP_TEST_PHONES</code> — when enabled, listed phones (comma-separated, any format) receive a fixed code for local testing; must match <code class="inline">OTP_LENGTH</code>. Off by default in <code class="inline">.env.example</code>.</li>
         </ul>
       </section>
 
@@ -318,11 +319,11 @@
 
       <section class="doc-section" id="post-auth-otp-verify" data-section="post-auth-otp-verify">
         <h3><span class="method method-post">POST</span> <code class="path">/v1/auth/otp/verify</code></h3>
-        <p>Validates OTP and returns tokens. New phones require <code class="inline">full_name</code>; existing phones ignore profile fields. Lockout after repeated failures (phone + IP).</p>
+        <p>Validates OTP and returns tokens. For <strong>new</strong> phones, <code class="inline">full_name</code> and <code class="inline">email</code> are optional; existing phones ignore profile fields. Lockout after repeated failures (phone + IP).</p>
         <h4>Body</h4>
         <ul>
           <li><code class="inline">phone</code>, <code class="inline">code</code> (required).</li>
-          <li><code class="inline">full_name</code> — required only when the phone has no account yet.</li>
+          <li><code class="inline">full_name</code> — optional when the phone has no account yet.</li>
           <li><code class="inline">email</code> — optional, new accounts only.</li>
           <li><code class="inline">device_label</code>, <code class="inline">user_agent</code> — optional.</li>
         </ul>
@@ -333,7 +334,9 @@
         </ul>
         <p class="note">Existing user:</p>
         <pre>{ "phone": "+1 555 123 4567", "code": "123456" }</pre>
-        <p class="note">New user:</p>
+        <p class="note">New user (minimal — name and email optional):</p>
+        <pre>{ "phone": "+1 555 987 6543", "code": "123456" }</pre>
+        <p class="note">New user with profile:</p>
         <pre>{
   "phone": "+1 555 987 6543",
   "code": "123456",
@@ -346,7 +349,7 @@
     "id": "uuid",
     "phone": "15551234567",
     "email": null,
-    "full_name": "Ada Lovelace",
+    "full_name": null,
     "is_active": true,
     "created_at": "2026-01-01 12:00:00"
   },

@@ -65,7 +65,7 @@ final class AuthService
         $registerEmail = null;
 
         if (!$isExisting) {
-            $registerFullName = $this->requireFullName($body['full_name'] ?? null);
+            $registerFullName = $this->optionalFullName($body['full_name'] ?? null);
             $registerEmail = $this->parseOptionalRegisterEmail($body['email'] ?? null);
             if ($registerEmail !== null && UserRepository::emailTaken($registerEmail)) {
                 throw new HttpException('Email already in use', 409);
@@ -151,7 +151,7 @@ final class AuthService
 
     private function completeRegisterAfterOtp(
         string $phone,
-        string $fullName,
+        ?string $fullName,
         ?string $email,
         ?string $userAgent,
         ?string $deviceLabel
@@ -204,7 +204,7 @@ final class AuthService
     /** @return array{ok: true, expires_in: int, debug_otp_code?: string} */
     private function createAndDispatchChallenge(string $phone, int $ttl, int $length): array
     {
-        $code = $this->generateOtpDigits($length);
+        $code = $this->resolveOtpCode($phone, $length);
         $salt = random_bytes(16);
         $saltHex = bin2hex($salt);
         $codeHash = hash('sha256', $salt . $code);
@@ -246,6 +246,42 @@ final class AuthService
         }
 
         return strtolower($s);
+    }
+
+    private function resolveOtpCode(string $normalizedPhone, int $length): string
+    {
+        $length = max(4, min(8, $length));
+
+        if ($this->fixedTestOtpEnabled() && $this->isOtpTestPhone($normalizedPhone)) {
+            $digits = preg_replace('/\D+/', '', trim(Env::get('OTP_TEST_CODE', '123456')));
+            if ($digits !== '' && strlen($digits) === $length && ctype_digit($digits)) {
+                return $digits;
+            }
+        }
+
+        return $this->generateOtpDigits($length);
+    }
+
+    private function fixedTestOtpEnabled(): bool
+    {
+        return strtolower(trim(Env::get('OTP_ENABLE_FIXED_TEST_OTP', 'false'))) === 'true';
+    }
+
+    private function isOtpTestPhone(string $normalizedPhone): bool
+    {
+        $raw = Env::get('OTP_TEST_PHONES', '');
+        if ($raw === null || trim($raw) === '') {
+            return false;
+        }
+
+        foreach (explode(',', $raw) as $entry) {
+            $n = Phone::normalize(trim($entry));
+            if ($n !== null && $n === $normalizedPhone) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function generateOtpDigits(int $length): string
@@ -294,7 +330,7 @@ final class AuthService
     }
 
     /**
-     * @param array{id: string, phone: string, email: ?string, full_name: string, is_active: bool, created_at: string} $user
+     * @param array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, created_at: string} $user
      * @return array{user: array<string, mixed>, access_token: string, refresh_token: string, expires_in: int}
      */
     private function issueTokensForUser(
@@ -358,15 +394,15 @@ final class AuthService
         return max(3600, (int) $v);
     }
 
-    private function requireFullName(mixed $value): string
+    private function optionalFullName(mixed $value): ?string
     {
         if ($value === null) {
-            throw new ValidationException('Invalid full name', ['full_name' => 'Full name is required for new accounts.']);
+            return null;
         }
 
         $s = trim((string) $value);
         if ($s === '') {
-            throw new ValidationException('Invalid full name', ['full_name' => 'Full name is required for new accounts.']);
+            return null;
         }
 
         if (strlen($s) > self::MAX_FULL_NAME_LENGTH) {
