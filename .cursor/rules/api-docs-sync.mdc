@@ -13,6 +13,7 @@ Include:
 - **Sections** — one `section.doc-section` per endpoint (or logical group), with `id` and `data-section` aligned to the sidebar.
 - **Content** — method, path under `/v1`, auth (public vs admin JWT), query/body fields, status codes, and notes that match `src/Core/App.php` and the controller.
 - **Samples** — use existing patterns: collapsible `details.sample-details` for JSON examples; a `.curl` block with `span.cu-base` for the base URL when other endpoints have cURL.
+- **Interactive tester** — for callable endpoints, add `details.api-tester` with `data-try-method`, `data-try-path`, `data-try-auth` (`none` or `bearer`), optional `data-require-admin="1"`, `data-try-no-json="1"`, `data-try-query="1"`, and the standard inner structure (see existing sections). Prefill refresh/logout with class `api-tester-prefill-refresh` and `REFRESH_TOKEN_PLACEHOLDER` in the textarea.
 
 Trigger this rule when editing **`src/Core/App.php`**, **`src/Controllers/*`**, or anything that changes request/response shapes clients rely on. Do not leave the HTML docs outdated after route work.
 

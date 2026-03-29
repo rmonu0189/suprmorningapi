@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SuprMorning API — Docs</title>
+  <title>SuprMorning API — Docs &amp; tester</title>
   <style>
     :root {
       --sidebar-bg: #f4f6f9;
@@ -264,6 +264,204 @@
       font-family: inherit;
     }
     .curl button:hover { background: rgba(255,255,255,0.2); }
+    .session-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.75rem;
+      margin-top: 1rem;
+      padding: 0.65rem 0.85rem;
+      background: #f8fafc;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .session-bar strong { color: var(--text); font-weight: 600; }
+    .session-role {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+    .btn-session {
+      margin-left: auto;
+      font-size: 0.8rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      background: #fff;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-session:hover { border-color: var(--accent); color: var(--accent); }
+    .signin-card {
+      display: grid;
+      gap: 0.5rem;
+      max-width: 28rem;
+      margin: 0.75rem 0 0;
+      padding: 1rem;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      background: #fafbfc;
+    }
+    .signin-card label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .signin-card input {
+      padding: 0.45rem 0.55rem;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      width: 100%;
+    }
+    .signin-card button {
+      margin-top: 0.35rem;
+      padding: 0.5rem 0.85rem;
+      border-radius: 6px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .signin-card button:hover { filter: brightness(1.05); }
+    .signin-hint {
+      font-size: 0.85rem;
+      color: #b45309;
+      margin: 0;
+      font-family: var(--mono);
+    }
+    .api-tester {
+      margin-top: 1rem;
+      border: 1px solid #c7d2fe;
+      border-radius: 8px;
+      background: #f5f7ff;
+      overflow: hidden;
+    }
+    .api-tester > summary {
+      cursor: pointer;
+      padding: 0.55rem 0.85rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #3730a3;
+      list-style: none;
+    }
+    .api-tester > summary::-webkit-details-marker { display: none; }
+    .api-tester > summary::before {
+      content: "▸";
+      display: inline-block;
+      margin-right: 0.35rem;
+      transition: transform 0.12s ease;
+    }
+    .api-tester[open] > summary::before { transform: rotate(90deg); }
+    .api-tester-box { padding: 0 0.85rem 0.85rem; }
+    .try-lbl {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin: 0.5rem 0 0.25rem;
+    }
+    .api-tester-json {
+      width: 100%;
+      min-height: 5rem;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      resize: vertical;
+    }
+    .api-tester-query {
+      width: 100%;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      padding: 0.45rem 0.55rem;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+    }
+    .btn-api-send {
+      margin-top: 0.65rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 6px;
+      border: 1px solid #3730a3;
+      background: #eef2ff;
+      color: #312e81;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+    .btn-api-send:hover { background: #e0e7ff; }
+    .btn-api-send:disabled { opacity: 0.55; cursor: not-allowed; }
+    .api-tester-warn {
+      font-size: 0.82rem;
+      color: #b45309;
+      margin: 0 0 0.35rem;
+    }
+    .api-tester-out {
+      margin-top: 0.75rem;
+      border-top: 1px solid #c7d2fe;
+      padding-top: 0.65rem;
+    }
+    .api-tester-meta {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      margin-bottom: 0.35rem;
+      color: var(--text);
+    }
+    .api-tester-meta.status-2xx { color: #065f46; }
+    .api-tester-meta.status-4xx, .api-tester-meta.status-5xx { color: #991b1b; }
+    .api-tester-res {
+      margin: 0;
+      font-size: 0.78rem;
+      max-height: 22rem;
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 0.75rem;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .api-tester-curl-wrap {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+    }
+    .api-tester-curl-wrap summary { cursor: pointer; color: var(--accent); }
+    .api-curl-block {
+      position: relative;
+      margin-top: 0.35rem;
+    }
+    .api-tester-curl {
+      margin: 0;
+      font-size: 0.72rem;
+      padding: 0.65rem 2.5rem 0.65rem 0.65rem;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .copy-try-curl {
+      position: absolute;
+      top: 0.4rem;
+      right: 0.4rem;
+      font-size: 0.65rem;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .copy-try-curl:hover { background: rgba(255,255,255,0.2); }
     @media (max-width: 900px) {
       .shell { flex-direction: column; }
       .sidebar {
@@ -298,6 +496,7 @@
         <nav aria-label="Authentication endpoints">
           <p class="nav-heading">Authentication</p>
           <a href="#overview" data-section="overview">Token flow &amp; overview</a>
+          <a href="#signin-tester" data-section="signin-tester">Sign in &amp; session</a>
           <a href="#post-auth-otp-send" data-section="post-auth-otp-send"><span class="method-tag">POST</span> /auth/otp/send</a>
           <a href="#post-auth-otp-verify" data-section="post-auth-otp-verify"><span class="method-tag">POST</span> /auth/otp/verify</a>
           <a href="#post-auth-refresh" data-section="post-auth-refresh"><span class="method-tag">POST</span> /auth/refresh</a>
@@ -329,7 +528,13 @@
     <main class="main">
       <header>
         <h2>API reference</h2>
-        <p class="lede">JSON under <code class="inline">/v1</code>. Writable routes expect <code class="inline">Content-Type: application/json</code>. <strong>Admin mutations</strong> (create/update/delete for CMS and catalog) require an access JWT with <code class="inline">role: "admin"</code>. Set <strong>Base URL</strong> in the sidebar; example cURL commands use it below.</p>
+        <p class="lede">JSON under <code class="inline">/v1</code>. Writable routes expect <code class="inline">Content-Type: application/json</code>. <strong>Admin mutations</strong> (create/update/delete for CMS and catalog) require an access JWT with <code class="inline">role: "admin"</code>. Set <strong>Base URL</strong> in the sidebar; example cURL commands use it below. Use <strong>Try this request</strong> under each endpoint to call the API from this page; tokens live in <code class="inline">sessionStorage</code> (this tab only), similar to the <a href="https://api.ggnproperty.com/api-docs.html" target="_blank" rel="noopener">GGN Property API docs</a>. Your API must allow this page’s origin in <code class="inline">CORS_ALLOW_ORIGINS</code> (opening this file via <code class="inline">file://</code> will not work with fetch).</p>
+        <div class="session-bar" role="status" aria-live="polite">
+          <span>Session:</span>
+          <strong id="sessionLabel">not signed in</strong>
+          <span id="sessionRole" class="session-role"></span>
+          <button type="button" id="btnSessionLogout" class="btn-session" hidden>Log out</button>
+        </div>
       </header>
 
       <section class="doc-section" id="overview" data-section="overview">
@@ -345,6 +550,23 @@
           <li><code class="inline">OTP_LENGTH</code>, <code class="inline">OTP_TTL_SECONDS</code>, <code class="inline">OTP_MAX_ATTEMPTS</code>, <code class="inline">OTP_LOG_TO_FILE</code>, <code class="inline">OTP_RETURN_CODE_IN_RESPONSE</code> (dev only)</li>
           <li><code class="inline">OTP_ENABLE_FIXED_TEST_OTP</code>, <code class="inline">OTP_TEST_CODE</code>, <code class="inline">OTP_TEST_PHONES</code> — when enabled, listed phones (comma-separated, any format) receive a fixed code for local testing; must match <code class="inline">OTP_LENGTH</code>. Off by default in <code class="inline">.env.example</code>.</li>
         </ul>
+      </section>
+
+      <section class="doc-section" id="signin-tester" data-section="signin-tester">
+        <h3>Sign in &amp; session</h3>
+        <p>Passwordless flow: send an OTP to your phone, then verify. On success, <code class="inline">access_token</code> and <code class="inline">refresh_token</code> are stored in <strong>sessionStorage</strong> for this tab. <strong>Try this request</strong> panels on protected routes attach <code class="inline">Authorization: Bearer …</code> automatically. The access token is refreshed in the background when it is close to expiry. Use <strong>Log out</strong> to clear the session (and revoke the refresh token on the server).</p>
+        <div class="signin-card">
+          <label for="signinPhone">Phone</label>
+          <input type="text" id="signinPhone" autocomplete="tel" placeholder="+1 555 123 4567" />
+          <button type="button" id="btnOtpSend">Send OTP</button>
+          <p id="otpDevHint" class="signin-hint" hidden></p>
+          <label for="signinCode">OTP code</label>
+          <input type="text" id="signinCode" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digits" />
+          <label for="signinFullName">full_name (optional, new accounts)</label>
+          <input type="text" id="signinFullName" placeholder="Ada Lovelace" />
+          <button type="button" id="btnOtpVerify">Verify &amp; save session</button>
+        </div>
+        <p class="note" id="signinStatusMsg" hidden></p>
       </section>
 
       <section class="doc-section" id="post-auth-otp-send" data-section="post-auth-otp-send">
@@ -393,6 +615,28 @@
   "error": "Too many OTP requests",
   "retry_after": 3542
 }</pre>
+        </details>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/auth/otp/send" data-try-auth="none">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="4">{ "phone": "+15551234567" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
         </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
@@ -470,6 +714,28 @@
   "retry_after": 842
 }</pre>
         </details>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/auth/otp/verify" data-try-auth="none">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="5">{ "phone": "+15551234567", "code": "123456" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/auth/otp/verify" \
@@ -511,6 +777,28 @@
           <summary>Sample error — <code class="inline">403</code></summary>
           <pre>{ "error": "Account is disabled" }</pre>
         </details>
+        <details class="api-tester api-tester-prefill-refresh" data-try-method="POST" data-try-path="/v1/auth/refresh" data-try-auth="none">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="3">{ "refresh_token": "REFRESH_TOKEN_PLACEHOLDER" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/auth/refresh" \
@@ -536,6 +824,28 @@
   "error": "refresh_token is required",
   "errors": { "refresh_token": "Required." }
 }</pre>
+        </details>
+        <details class="api-tester api-tester-prefill-refresh" data-try-method="POST" data-try-path="/v1/auth/logout" data-try-auth="none">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="3">{ "refresh_token": "REFRESH_TOKEN_PLACEHOLDER" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
         </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
@@ -570,6 +880,28 @@
         <details class="sample-details">
           <summary>Sample error — <code class="inline">403</code> (user disabled)</summary>
           <pre>{ "error": "Account is disabled" }</pre>
+        </details>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/auth/me" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap" hidden>
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{}</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
         </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
@@ -648,6 +980,32 @@
   "errors": { "id": "Must be a valid UUID" }
 }</pre>
         </details>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/pages" data-try-auth="none" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap" hidden>
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{}</textarea>
+            </div>
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string (optional, no leading ?)</label>
+              <input type="text" class="api-tester-query" placeholder="page_name=home or id=UUID" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS "<span class="cu-base"></span>/v1/pages?page_name=home"</pre>
@@ -703,6 +1061,33 @@
   "errors": { "type": "Required." }
 }</pre>
         </details>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/pages" data-try-auth="bearer" data-require-admin="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="8">{
+  "page_name": "home",
+  "type": "hero_banner",
+  "card_index": 0,
+  "content": { "title": "Hello from tester", "subtitle": "API docs" }
+}</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/pages" \
@@ -749,6 +1134,28 @@
           <summary>Sample error — <code class="inline">404</code></summary>
           <pre>{ "error": "Not Found" }</pre>
         </details>
+        <details class="api-tester" data-try-method="PUT" data-try-path="/v1/pages" data-try-auth="bearer" data-require-admin="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="4">{ "id": "PAGE_UUID", "content": { "title": "Updated from tester" } }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS -X PUT "<span class="cu-base"></span>/v1/pages" \
@@ -786,6 +1193,32 @@
   "error": "Invalid id",
   "errors": { "id": "Provide a valid UUID via ?id= or JSON body." }
 }</pre>
+        </details>
+        <details class="api-tester" data-try-method="DELETE" data-try-path="/v1/pages" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap" hidden>
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{}</textarea>
+            </div>
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string (no leading ?)</label>
+              <input type="text" class="api-tester-query" placeholder="id=PAGE_UUID" value="id=PAGE_UUID" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
         </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
@@ -841,6 +1274,32 @@
           <summary>Sample error — <code class="inline">404</code> (unknown id)</summary>
           <pre>{ "error": "Not Found" }</pre>
         </details>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/brands" data-try-auth="none" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap" hidden>
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{}</textarea>
+            </div>
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string (optional, no leading ?)</label>
+              <input type="text" class="api-tester-query" placeholder="id=BRAND_UUID or leave empty for list" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS "<span class="cu-base"></span>/v1/brands"</pre>
@@ -888,6 +1347,33 @@
           <summary>Sample error — <code class="inline">403</code> (not admin)</summary>
           <pre>{ "error": "Forbidden" }</pre>
         </details>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/brands" data-try-auth="bearer" data-require-admin="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="6">{
+  "name": "Acme Foods",
+  "about": "Fresh daily essentials.",
+  "logo": "https://cdn.example.com/acme.png",
+  "status": true
+}</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS -X POST "<span class="cu-base"></span>/v1/brands" \
@@ -928,6 +1414,28 @@
           <summary>Sample error — <code class="inline">404</code></summary>
           <pre>{ "error": "Not Found" }</pre>
         </details>
+        <details class="api-tester" data-try-method="PUT" data-try-path="/v1/brands" data-try-auth="bearer" data-require-admin="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="3">{ "id": "BRAND_UUID", "name": "Acme Foods Ltd" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS -X PUT "<span class="cu-base"></span>/v1/brands" \
@@ -965,6 +1473,32 @@
   }
 }</pre>
         </details>
+        <details class="api-tester" data-try-method="DELETE" data-try-path="/v1/brands" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap" hidden>
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{}</textarea>
+            </div>
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string (no leading ?)</label>
+              <input type="text" class="api-tester-query" placeholder="id=BRAND_UUID" value="id=BRAND_UUID" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
         <div class="curl">
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS -X DELETE "<span class="cu-base"></span>/v1/brands?id=BRAND_UUID" \
@@ -986,6 +1520,11 @@
 
   <script>
     (function () {
+      var SS_ACCESS = "suprmorning_access_token";
+      var SS_REFRESH = "suprmorning_refresh_token";
+      var SS_USER = "suprmorning_user_json";
+      var SS_EXP = "suprmorning_access_exp_ms";
+
       var baseInput = document.getElementById("baseUrl");
       var stored = "";
       try {
@@ -1036,6 +1575,384 @@
           }
         });
       });
+
+      function parseJwtPayload(token) {
+        try {
+          var parts = token.split(".");
+          if (parts.length < 2) return null;
+          var s = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          while (s.length % 4) s += "=";
+          return JSON.parse(atob(s));
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function getRefresh() {
+        try {
+          return sessionStorage.getItem(SS_REFRESH) || "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function getAccess() {
+        try {
+          return sessionStorage.getItem(SS_ACCESS) || "";
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function saveTokensFromPayload(data) {
+        if (!data || !data.access_token) return;
+        try {
+          sessionStorage.setItem(SS_ACCESS, data.access_token);
+          if (data.refresh_token) sessionStorage.setItem(SS_REFRESH, data.refresh_token);
+          var sec = parseInt(String(data.expires_in || "900"), 10);
+          if (isNaN(sec) || sec < 1) sec = 900;
+          sessionStorage.setItem(SS_EXP, String(Date.now() + sec * 1000));
+          if (data.user) sessionStorage.setItem(SS_USER, JSON.stringify(data.user));
+        } catch (e) {}
+        updateSessionUI();
+      }
+
+      function clearSession() {
+        try {
+          sessionStorage.removeItem(SS_ACCESS);
+          sessionStorage.removeItem(SS_REFRESH);
+          sessionStorage.removeItem(SS_USER);
+          sessionStorage.removeItem(SS_EXP);
+        } catch (e) {}
+        updateSessionUI();
+      }
+
+      function updateSessionUI() {
+        var label = document.getElementById("sessionLabel");
+        var roleEl = document.getElementById("sessionRole");
+        var btnOut = document.getElementById("btnSessionLogout");
+        if (!label) return;
+        var tok = getAccess();
+        if (!tok) {
+          label.textContent = "not signed in";
+          roleEl.textContent = "";
+          btnOut.hidden = true;
+          return;
+        }
+        var u = null;
+        try {
+          var j = sessionStorage.getItem(SS_USER);
+          if (j) u = JSON.parse(j);
+        } catch (e) {}
+        var pl = parseJwtPayload(tok);
+        var role = (u && u.role) || (pl && pl.role) || "?";
+        var who = "signed in";
+        if (u && u.phone) who = String(u.phone);
+        else if (u && u.id) who = "user " + String(u.id).slice(0, 8) + "…";
+        else if (pl && pl.sub) who = "user " + String(pl.sub).slice(0, 8) + "…";
+        label.textContent = who;
+        roleEl.textContent = " · role: " + role;
+        btnOut.hidden = false;
+      }
+
+      function prefillRefreshTextareas() {
+        var rt = getRefresh();
+        document.querySelectorAll(".api-tester-prefill-refresh .api-tester-json").forEach(function (ta) {
+          if (ta.value.indexOf("REFRESH_TOKEN_PLACEHOLDER") >= 0 || ta.value.indexOf("paste_refresh") >= 0) {
+            ta.value = JSON.stringify({ refresh_token: rt || "paste_refresh_token_here" }, null, 2);
+          }
+        });
+      }
+
+      document.querySelectorAll(".api-tester-prefill-refresh").forEach(function (det) {
+        det.addEventListener("toggle", function () {
+          if (det.open) prefillRefreshTextareas();
+        });
+      });
+
+      async function refreshAccessToken() {
+        var rt = getRefresh();
+        if (!rt) return false;
+        try {
+          var res = await fetch(base() + "/v1/auth/refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: rt, device_label: "api-docs" }),
+          });
+          var text = await res.text();
+          var data = {};
+          try {
+            data = JSON.parse(text);
+          } catch (e) {}
+          if (!res.ok) return false;
+          saveTokensFromPayload(data);
+          prefillRefreshTextareas();
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      async function ensureFreshAccess() {
+        var tok = getAccess();
+        var exp = 0;
+        try {
+          exp = parseInt(sessionStorage.getItem(SS_EXP) || "0", 10);
+        } catch (e) {}
+        if (tok && Date.now() < exp - 45000) return true;
+        return await refreshAccessToken();
+      }
+
+      function buildCurl(method, url, hdrs, body) {
+        var parts = ["curl -sS -i", "-X", "'" + method + "'"];
+        parts.push("'" + url.replace(/'/g, "'\\''") + "'");
+        Object.keys(hdrs).forEach(function (k) {
+          parts.push("-H", "'" + k + ": " + String(hdrs[k]).replace(/'/g, "'\\''") + "'");
+        });
+        if (body != null && body !== "") {
+          parts.push("-d", "'" + String(body).replace(/'/g, "'\\''") + "'");
+        }
+        return parts.join(" ");
+      }
+
+      async function sendTester(detailsEl, isRetry) {
+        var method = (detailsEl.getAttribute("data-try-method") || "GET").toUpperCase();
+        var path = detailsEl.getAttribute("data-try-path") || "/v1";
+        var auth = detailsEl.getAttribute("data-try-auth") || "none";
+        var requireAdmin = detailsEl.getAttribute("data-require-admin") === "1";
+        var noJson = detailsEl.getAttribute("data-try-no-json") === "1";
+        var box = detailsEl.querySelector(".api-tester-box");
+        if (!box) return;
+        var warn = box.querySelector(".api-tester-warn");
+        var out = box.querySelector(".api-tester-out");
+        var meta = box.querySelector(".api-tester-meta");
+        var resPre = box.querySelector(".api-tester-res");
+        var curlPre = box.querySelector(".api-tester-curl");
+        warn.hidden = true;
+        warn.textContent = "";
+
+        if (requireAdmin) {
+          await ensureFreshAccess();
+          var at0 = getAccess();
+          var pl0 = at0 ? parseJwtPayload(at0) : null;
+          if (!pl0 || pl0.role !== "admin") {
+            warn.textContent =
+              "This route requires JWT role admin. Current role: " +
+              (pl0 && pl0.role != null ? JSON.stringify(pl0.role) : "unknown") +
+              ".";
+            warn.hidden = false;
+          }
+        }
+
+        var url = base() + path;
+        var qIn = box.querySelector(".api-tester-query");
+        if (qIn && qIn.value.trim()) {
+          url += "?" + qIn.value.trim().replace(/^\?/, "");
+        }
+
+        var headers = {};
+        var bodyStr = null;
+
+        if (auth === "bearer") {
+          await ensureFreshAccess();
+          var acc = getAccess();
+          if (!acc) {
+            meta.textContent = "No access token — use Sign in & session first.";
+            meta.className = "api-tester-meta status-4xx";
+            resPre.textContent = "";
+            out.hidden = false;
+            curlPre.textContent = "";
+            return;
+          }
+          headers["Authorization"] = "Bearer " + acc;
+        }
+
+        if (!noJson && method !== "GET" && method !== "HEAD") {
+          var ta = box.querySelector(".api-tester-json");
+          bodyStr = (ta && ta.value) || "{}";
+          headers["Content-Type"] = "application/json";
+        }
+
+        var fetchOpts = { method: method, headers: headers };
+        if (bodyStr !== null) fetchOpts.body = bodyStr;
+
+        var res;
+        try {
+          res = await fetch(url, fetchOpts);
+        } catch (err) {
+          meta.textContent = "Network error (check CORS / Base URL)";
+          meta.className = "api-tester-meta status-5xx";
+          resPre.textContent = String(err);
+          out.hidden = false;
+          curlPre.textContent = buildCurl(method, url, headers, bodyStr);
+          return;
+        }
+
+        var resText = await res.text();
+        if (res.status === 401 && auth === "bearer" && !isRetry) {
+          var ok = await refreshAccessToken();
+          if (ok) return sendTester(detailsEl, true);
+        }
+
+        meta.textContent = res.status + " " + res.statusText;
+        meta.className =
+          "api-tester-meta " +
+          (res.ok ? "status-2xx" : res.status >= 500 ? "status-5xx" : "status-4xx");
+        try {
+          resPre.textContent = JSON.stringify(JSON.parse(resText), null, 2);
+        } catch (e) {
+          resPre.textContent = resText || "(empty body)";
+        }
+        out.hidden = false;
+        curlPre.textContent = buildCurl(method, url, headers, bodyStr);
+      }
+
+      document.querySelectorAll(".api-tester .btn-api-send").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var det = btn.closest(".api-tester");
+          if (det) sendTester(det, false);
+        });
+      });
+
+      document.addEventListener("click", function (e) {
+        var t = e.target;
+        if (!t || !t.classList || !t.classList.contains("copy-try-curl")) return;
+        var block = t.closest(".api-curl-block");
+        var pre = block && block.querySelector(".api-tester-curl");
+        if (!pre || !navigator.clipboard || !navigator.clipboard.writeText) return;
+        var label = t.textContent;
+        navigator.clipboard.writeText(pre.textContent || "").then(function () {
+          t.textContent = "Copied";
+          setTimeout(function () {
+            t.textContent = label;
+          }, 1500);
+        });
+      });
+
+      var btnSend = document.getElementById("btnOtpSend");
+      if (btnSend) {
+        btnSend.addEventListener("click", async function () {
+          var phoneEl = document.getElementById("signinPhone");
+          var hint = document.getElementById("otpDevHint");
+          var msg = document.getElementById("signinStatusMsg");
+          var phone = phoneEl ? phoneEl.value.trim() : "";
+          if (hint) hint.hidden = true;
+          if (msg) msg.hidden = true;
+          try {
+            var res = await fetch(base() + "/v1/auth/otp/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ phone: phone, device_label: "api-docs" }),
+            });
+            var text = await res.text();
+            var data = {};
+            try {
+              data = JSON.parse(text);
+            } catch (e) {}
+            if (!res.ok) {
+              if (msg) {
+                msg.textContent = res.status + " — " + (data.error || text || res.statusText);
+                msg.hidden = false;
+              }
+              return;
+            }
+            if (hint) {
+              if (data.debug_otp_code) {
+                hint.textContent = "Dev: debug_otp_code = " + data.debug_otp_code;
+                var ce = document.getElementById("signinCode");
+                if (ce) ce.value = String(data.debug_otp_code);
+              } else {
+                hint.textContent = "OTP sent. Check SMS or server logs for the code.";
+              }
+              hint.hidden = false;
+            }
+            if (msg) {
+              msg.textContent = "OTP send OK (expires_in: " + (data.expires_in || "?") + "s).";
+              msg.hidden = false;
+            }
+          } catch (err) {
+            if (msg) {
+              msg.textContent = "Network error: " + err;
+              msg.hidden = false;
+            }
+          }
+        });
+      }
+
+      var btnVerify = document.getElementById("btnOtpVerify");
+      if (btnVerify) {
+        btnVerify.addEventListener("click", async function () {
+          var phoneEl = document.getElementById("signinPhone");
+          var codeEl = document.getElementById("signinCode");
+          var nameEl = document.getElementById("signinFullName");
+          var msg = document.getElementById("signinStatusMsg");
+          var phone = phoneEl ? phoneEl.value.trim() : "";
+          var code = codeEl ? codeEl.value.trim() : "";
+          var fullName = nameEl ? nameEl.value.trim() : "";
+          if (msg) msg.hidden = true;
+          var body = { phone: phone, code: code, device_label: "api-docs" };
+          if (fullName) body.full_name = fullName;
+          try {
+            var res = await fetch(base() + "/v1/auth/otp/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            var text = await res.text();
+            var data = {};
+            try {
+              data = JSON.parse(text);
+            } catch (e) {}
+            if (!res.ok) {
+              if (msg) {
+                msg.textContent = res.status + " — " + (data.error || text || res.statusText);
+                msg.hidden = false;
+              }
+              return;
+            }
+            saveTokensFromPayload(data);
+            prefillRefreshTextareas();
+            if (msg) {
+              msg.textContent =
+                "Session saved in sessionStorage for this tab. Open “Try this request” on any endpoint.";
+              msg.hidden = false;
+            }
+          } catch (err) {
+            if (msg) {
+              msg.textContent = "Network error: " + err;
+              msg.hidden = false;
+            }
+          }
+        });
+      }
+
+      var btnLo = document.getElementById("btnSessionLogout");
+      if (btnLo) {
+        btnLo.addEventListener("click", async function () {
+          var rt = getRefresh();
+          if (rt) {
+            try {
+              await fetch(base() + "/v1/auth/logout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refresh_token: rt, device_label: "api-docs" }),
+              });
+            } catch (e) {}
+          }
+          clearSession();
+        });
+      }
+
+      updateSessionUI();
+
+      setInterval(function () {
+        if (!getAccess() || !getRefresh()) return;
+        var exp = 0;
+        try {
+          exp = parseInt(sessionStorage.getItem(SS_EXP) || "0", 10);
+        } catch (e) {}
+        if (Date.now() > exp - 120000) refreshAccessToken();
+      }, 60000);
 
       var links = Array.prototype.slice.call(
         document.querySelectorAll(".sidebar nav a[data-section]")
