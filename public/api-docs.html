@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SuprMorning API</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4d;
+      --text: #e7edf4;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 1.5rem;
+      max-width: 52rem;
+    }
+    h1 { font-size: 1.35rem; margin: 0 0 0.5rem; }
+    p { color: var(--muted); margin: 0 0 1rem; }
+    a { color: var(--accent); }
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.15rem;
+      margin-top: 1rem;
+    }
+    code, pre { font-family: var(--mono); font-size: 0.88rem; }
+    pre {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      color: var(--text);
+    }
+    .method { color: #3fb950; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>SuprMorning API</h1>
+  <p>Starter documentation. Set <strong>Base URL</strong> to your API origin (e.g. <code>http://localhost:8000</code>).</p>
+
+  <section>
+    <p><span class="method">GET</span> <code>/v1/health</code></p>
+    <p>Public. Returns service status and timestamp.</p>
+    <pre id="sample">{}</pre>
+  </section>
+
+  <section>
+    <p><strong>Adding routes</strong>: register handlers in <code>src/Core/App.php</code> using <code>Router::add</code>. Use <code>Controllers</code> → <code>Services</code> → <code>Repositories</code> as you grow.</p>
+  </section>
+
+  <script>
+    fetch(new URL('/v1/health', window.location.origin))
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        document.getElementById('sample').textContent = JSON.stringify(j, null, 2);
+      })
+      .catch(function () {
+        document.getElementById('sample').textContent =
+          '// Run: php -S localhost:8000 -t public\n// Then open this page from that server.';
+      });
+  </script>
+</body>
+</html>
