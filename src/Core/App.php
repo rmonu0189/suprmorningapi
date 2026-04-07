@@ -6,6 +6,7 @@ namespace App\Core;
 
 use App\Controllers\AdminOrderController;
 use App\Controllers\AdminUsersController;
+use App\Controllers\AdminAnalyticsController;
 use App\Controllers\AddressController;
 use App\Controllers\AuthController;
 use App\Controllers\AdminUploadsController;
@@ -25,6 +26,7 @@ use App\Controllers\VariantsController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
 require_once __DIR__ . '/../Controllers/AdminUsersController.php';
+require_once __DIR__ . '/../Controllers/AdminAnalyticsController.php';
 require_once __DIR__ . '/../Controllers/AdminUploadsController.php';
 require_once __DIR__ . '/../Controllers/FilesController.php';
 require_once __DIR__ . '/../Controllers/AddressController.php';
@@ -63,6 +65,7 @@ require_once __DIR__ . '/../Services/OtpNotifier.php';
 require_once __DIR__ . '/../Services/AuthService.php';
 require_once __DIR__ . '/../Repositories/PageRepository.php';
 require_once __DIR__ . '/../Repositories/BrandRepository.php';
+require_once __DIR__ . '/../Repositories/AdminAnalyticsRepository.php';
 require_once __DIR__ . '/../Repositories/CartChargeRepository.php';
 require_once __DIR__ . '/../Repositories/CatalogRepository.php';
 require_once __DIR__ . '/../Repositories/CartRepository.php';
@@ -106,6 +109,7 @@ final class App
         $catalog = new CatalogController();
         $orders = new OrderController();
         $adminOrders = new AdminOrderController();
+        $adminAnalytics = new AdminAnalyticsController();
         $adminUsers = new AdminUsersController();
         $adminUploads = new AdminUploadsController();
         $files = new FilesController();
@@ -279,6 +283,10 @@ final class App
         });
         $router->add('PATCH', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->patch($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/admin/analytics/overview', static function (Request $r) use ($adminAnalytics): void {
+            $adminAnalytics->overview($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/users', static function (Request $r) use ($adminUsers): void {
