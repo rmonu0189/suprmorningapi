@@ -20,7 +20,7 @@ final class CatalogRepository
                     v.status, v.discount_tag,
                     p.id AS product_table_id, p.name AS product_name, p.brand_id, p.description AS product_description,
                     p.metadata AS product_metadata, p.status AS product_status,
-                    b.id AS brand_id_val, b.name AS brand_name, b.logo AS brand_logo,
+                    b.id AS brand_id_val, b.name AS brand_name, b.about AS brand_about, b.logo AS brand_logo, b.status AS brand_status,
                     i.quantity AS inv_quantity, i.reserved_quantity AS inv_reserved
              FROM variants v
              INNER JOIN products p ON p.id = v.product_id
@@ -44,7 +44,7 @@ final class CatalogRepository
     public static function findVariantsByProductId(string $productId): array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata,
+            'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images,
                     v.status, v.discount_tag,
                     i.quantity AS inv_quantity, i.reserved_quantity AS inv_reserved
              FROM variants v
@@ -93,8 +93,11 @@ final class CatalogRepository
                     ? (string) $row['product_description'] : null,
                 'metadata' => self::decodeJsonObject($row['product_metadata'] ?? null),
                 'brands' => [
+                    'id' => (string) $row['brand_id_val'],
                     'name' => (string) $row['brand_name'],
+                    'about' => $row['brand_about'] !== null && $row['brand_about'] !== '' ? (string) $row['brand_about'] : null,
                     'logo' => $row['brand_logo'] !== null && $row['brand_logo'] !== '' ? (string) $row['brand_logo'] : null,
+                    'status' => (bool) (int) ($row['brand_status'] ?? 1),
                 ],
             ],
             'inventory' => [
@@ -118,7 +121,6 @@ final class CatalogRepository
             'price' => (float) $row['price'],
             'mrp' => (float) $row['mrp'],
             'images' => $images,
-            'metadata' => self::decodeJsonObject($row['metadata'] ?? null),
             'status' => (bool) (int) $row['status'],
             'discount_tag' => $row['discount_tag'] !== null && $row['discount_tag'] !== '' ? (string) $row['discount_tag'] : null,
             'inventory' => [
