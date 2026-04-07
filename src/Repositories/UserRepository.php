@@ -112,4 +112,15 @@ final class UserRepository
             'role' => $role !== '' ? $role : self::DEFAULT_ROLE,
         ]);
     }
+
+    public static function updateFullName(string $id, ?string $fullName): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE users SET full_name = :full_name WHERE id = :id'
+        );
+        $stmt->execute([
+            'id' => $id,
+            'full_name' => $fullName,
+        ]);
+    }
 }

@@ -152,6 +152,47 @@ final class AuthController
         Response::json(['user' => $user]);
     }
 
+    public function patchMe(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+
+        Validator::requireJsonContentType($request);
+        $body = $request->json();
+        $sub = (string) ($claims['sub'] ?? '');
+        if ($sub === '') {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        if (!array_key_exists('full_name', $body)) {
+            Response::json(['error' => 'Nothing to update', 'errors' => ['full_name' => 'Provide full_name.']], 422);
+            return;
+        }
+
+        $raw = $body['full_name'];
+        $fullName = null;
+        if ($raw !== null && $raw !== '') {
+            $s = trim((string) $raw);
+            if (strlen($s) > 255) {
+                Response::json(['error' => 'Invalid full name', 'errors' => ['full_name' => 'At most 255 characters.']], 422);
+                return;
+            }
+            $fullName = $s === '' ? null : $s;
+        }
+
+        UserRepository::updateFullName($sub, $fullName);
+        $user = UserRepository::findById($sub);
+        if ($user === null) {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        Response::json(['user' => $user]);
+    }
+
     /** @param array<string, mixed> $body */
     private function resolveUserAgent(Request $request, array $body): ?string
     {

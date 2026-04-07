@@ -6,6 +6,8 @@ namespace App\Core;
 
 final class Request
 {
+    private ?string $cachedInput = null;
+
     public function method(): string
     {
         return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -75,10 +77,21 @@ final class Request
         return is_string($remote) ? $remote : '0.0.0.0';
     }
 
+    /** Raw request body (for webhooks signature verification). */
+    public function rawBody(): string
+    {
+        if ($this->cachedInput === null) {
+            $raw = file_get_contents('php://input');
+            $this->cachedInput = is_string($raw) ? $raw : '';
+        }
+
+        return $this->cachedInput;
+    }
+
     public function json(): array
     {
-        $raw = file_get_contents('php://input');
-        if (!is_string($raw) || trim($raw) === '') {
+        $raw = $this->rawBody();
+        if (trim($raw) === '') {
             return [];
         }
 

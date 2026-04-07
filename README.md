@@ -39,3 +39,7 @@ Open `GET /api-docs.html` on the same host as the API for a short SuprMorning re
 ## Deploy
 
 Point the web server document root to `public/`. For Apache, keep `public/.htaccess` (`mod_rewrite`, `AllowOverride All`).
+
+**Shared hosting:** PHP 8+ with PDO MySQL, outbound HTTPS (Razorpay API, SMS OTP). Razorpay webhooks require a **public HTTPS** URL; set `RAZORPAY_*` in `.env`. After pulling new code, run new SQL under `database/migrations/` (e.g. `005_commerce_carts_orders.sql`) if the DB was created before commerce tables existed.
+
+**Mobile app:** set `EXPO_PUBLIC_API_BASE` to this API’s origin (see `SuprMorning/.env.example`).
