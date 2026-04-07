@@ -8,6 +8,9 @@ use App\Core\Env;
 use App\Core\Request;
 use App\Core\Response;
 use App\Repositories\OrderRepository;
+use App\Repositories\PaymentEventRepository;
+use App\Repositories\PaymentRepository;
+use App\Core\Uuid;
 
 final class RazorpayWebhookController
 {
@@ -52,6 +55,21 @@ final class RazorpayWebhookController
         }
 
         $orderId = self::extractRazorpayOrderId($event, $payload);
+
+        // Always log the received payment event (after signature verification).
+        // Never fail the webhook response just because logging failed.
+        try {
+            PaymentEventRepository::insert(
+                Uuid::v4(),
+                'razorpay',
+                $event,
+                $orderId,
+                $raw
+            );
+        } catch (\Throwable) {
+            // ignore
+        }
+
         if ($orderId === null) {
             Response::json(['ok' => true]);
             return;
@@ -59,8 +77,10 @@ final class RazorpayWebhookController
 
         if ($event === 'payment.captured' || $event === 'order.paid') {
             OrderRepository::updatePaymentStatusByGatewayOrderId($orderId, 'success');
+            PaymentRepository::updateStatusByGatewayOrderId($orderId, 'success');
         } elseif ($event === 'payment.failed') {
             OrderRepository::updatePaymentStatusByGatewayOrderId($orderId, 'failed');
+            PaymentRepository::updateStatusByGatewayOrderId($orderId, 'failed');
         }
 
         Response::json(['ok' => true]);

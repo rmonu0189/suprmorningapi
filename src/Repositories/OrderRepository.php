@@ -153,6 +153,141 @@ final class OrderRepository
         return $out;
     }
 
+    /**
+     * Admin: single order with line items (no user scope).
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function findByIdForAdmin(string $orderId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT * FROM orders WHERE id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $orderId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return null;
+        }
+
+        return self::formatOrderWithItems($row);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function findAllForAdmin(
+        int $offset,
+        int $limit,
+        ?string $paymentStatus,
+        ?string $orderStatus
+    ): array {
+        $where = ['1=1'];
+        $params = [];
+        if ($paymentStatus !== null && $paymentStatus !== '') {
+            $where[] = 'o.payment_status = :ps';
+            $params['ps'] = $paymentStatus;
+        }
+        if ($orderStatus !== null && $orderStatus !== '') {
+            $where[] = 'o.order_status = :os';
+            $params['os'] = $orderStatus;
+        }
+        $w = implode(' AND ', $where);
+        $sql = "SELECT o.*, u.phone AS customer_phone, u.email AS customer_email, u.full_name AS customer_full_name
+                FROM orders o
+                LEFT JOIN users u ON u.id = o.user_id
+                WHERE {$w}
+                ORDER BY o.created_at DESC, o.id DESC
+                LIMIT :lim OFFSET :off";
+        $stmt = Database::connection()->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $orderOnly = self::stripJoinedOrderRow($row);
+            $base = self::formatOrderWithItems($orderOnly);
+            $base['customer'] = [
+                'phone' => isset($row['customer_phone']) && $row['customer_phone'] !== ''
+                    ? (string) $row['customer_phone'] : null,
+                'email' => isset($row['customer_email']) && $row['customer_email'] !== ''
+                    ? (string) $row['customer_email'] : null,
+                'full_name' => isset($row['customer_full_name']) && $row['customer_full_name'] !== ''
+                    ? (string) $row['customer_full_name'] : null,
+            ];
+            $base['user_id'] = (string) ($row['user_id'] ?? '');
+            $out[] = $base;
+        }
+
+        return $out;
+    }
+
+    public static function countAllForAdmin(?string $paymentStatus, ?string $orderStatus): int
+    {
+        $where = ['1=1'];
+        $params = [];
+        if ($paymentStatus !== null && $paymentStatus !== '') {
+            $where[] = 'payment_status = :ps';
+            $params['ps'] = $paymentStatus;
+        }
+        if ($orderStatus !== null && $orderStatus !== '') {
+            $where[] = 'order_status = :os';
+            $params['os'] = $orderStatus;
+        }
+        $w = implode(' AND ', $where);
+        $stmt = Database::connection()->prepare("SELECT COUNT(*) AS c FROM orders WHERE {$w}");
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? (int) ($row['c'] ?? 0) : 0;
+    }
+
+    public static function updateAdminFulfillment(
+        string $orderId,
+        ?string $orderStatus,
+        bool $orderStatusProvided,
+        ?string $deliveredAtSql,
+        bool $deliveredAtProvided
+    ): void {
+        $sets = [];
+        $params = ['id' => $orderId];
+        if ($orderStatusProvided) {
+            $sets[] = 'order_status = :os';
+            $params['os'] = $orderStatus ?? 'created';
+        }
+        if ($deliveredAtProvided) {
+            $sets[] = 'delivered_at = :da';
+            $params['da'] = $deliveredAtSql;
+        }
+        if ($sets === []) {
+            return;
+        }
+        $sql = 'UPDATE orders SET ' . implode(', ', $sets) . ' WHERE id = :id';
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute($params);
+    }
+
+    /**
+     * @param array<string, mixed> $row joined row with o.* + customer_* aliases
+     * @return array<string, mixed>
+     */
+    private static function stripJoinedOrderRow(array $row): array
+    {
+        unset($row['customer_phone'], $row['customer_email'], $row['customer_full_name']);
+
+        return $row;
+    }
+
     /** @return array<string, mixed>|null */
     public static function findByIdForUser(string $orderId, string $userId): ?array
     {

@@ -34,4 +34,20 @@ final class PaymentRepository
             'st' => $status,
         ]);
     }
+
+    /**
+     * Updates the latest payment row (by created_at) for a given gateway order id.
+     */
+    public static function updateStatusByGatewayOrderId(string $gatewayOrderId, string $status): bool
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE payments SET status = :st
+             WHERE gateway_order_id = :go
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1'
+        );
+        $stmt->execute(['st' => $status, 'go' => $gatewayOrderId]);
+
+        return $stmt->rowCount() > 0;
+    }
 }
