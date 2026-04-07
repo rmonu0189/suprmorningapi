@@ -123,4 +123,99 @@ final class UserRepository
             'full_name' => $fullName,
         ]);
     }
+
+    /**
+     * Admin: search users by phone (partial match) and optionally exclude a role.
+     *
+     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
+     */
+    public static function searchByPhone(string $phoneLike, ?string $excludeRole = null, int $limit = 50): array
+    {
+        $limit = max(1, min(200, $limit));
+        $like = '%' . $phoneLike . '%';
+
+        if ($excludeRole !== null && $excludeRole !== '') {
+            $stmt = Database::connection()->prepare(
+                'SELECT id, phone, email, full_name, is_active, role, created_at
+                 FROM users
+                 WHERE phone LIKE :like AND role <> :exclude
+                 ORDER BY created_at DESC
+                 LIMIT ' . (int) $limit
+            );
+            $stmt->execute(['like' => $like, 'exclude' => $excludeRole]);
+        } else {
+            $stmt = Database::connection()->prepare(
+                'SELECT id, phone, email, full_name, is_active, role, created_at
+                 FROM users
+                 WHERE phone LIKE :like
+                 ORDER BY created_at DESC
+                 LIMIT ' . (int) $limit
+            );
+            $stmt->execute(['like' => $like]);
+        }
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) return [];
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = [
+                    'id' => (string) $row['id'],
+                    'phone' => (string) $row['phone'],
+                    'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
+                    'full_name' => $row['full_name'] !== null && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
+                    'is_active' => (bool) (int) $row['is_active'],
+                    'role' => (string) ($row['role'] ?? self::DEFAULT_ROLE),
+                    'created_at' => (string) $row['created_at'],
+                ];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Admin: list users excluding a role (defaults to excluding regular "user").
+     *
+     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
+     */
+    public static function listByRoleExcluding(string $excludeRole = self::DEFAULT_ROLE, int $limit = 200): array
+    {
+        $limit = max(1, min(500, $limit));
+        $stmt = Database::connection()->prepare(
+            'SELECT id, phone, email, full_name, is_active, role, created_at
+             FROM users
+             WHERE role <> :exclude
+             ORDER BY created_at DESC
+             LIMIT ' . (int) $limit
+        );
+        $stmt->execute(['exclude' => $excludeRole]);
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) return [];
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = [
+                    'id' => (string) $row['id'],
+                    'phone' => (string) $row['phone'],
+                    'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
+                    'full_name' => $row['full_name'] !== null && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
+                    'is_active' => (bool) (int) $row['is_active'],
+                    'role' => (string) ($row['role'] ?? self::DEFAULT_ROLE),
+                    'created_at' => (string) $row['created_at'],
+                ];
+            }
+        }
+        return $out;
+    }
+
+    public static function updateRole(string $id, string $role): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE users SET role = :role WHERE id = :id'
+        );
+        $stmt->execute(['id' => $id, 'role' => $role !== '' ? $role : self::DEFAULT_ROLE]);
+    }
 }

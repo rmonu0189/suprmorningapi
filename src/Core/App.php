@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Controllers\AdminOrderController;
+use App\Controllers\AdminUsersController;
 use App\Controllers\AddressController;
 use App\Controllers\AuthController;
+use App\Controllers\AdminUploadsController;
 use App\Controllers\BrandsController;
 use App\Controllers\CartChargesController;
 use App\Controllers\CartController;
 use App\Controllers\CatalogController;
+use App\Controllers\CouponsController;
+use App\Controllers\FilesController;
 use App\Controllers\InventoryController;
 use App\Controllers\LoveController;
 use App\Controllers\OrderController;
@@ -20,12 +24,16 @@ use App\Controllers\RazorpayWebhookController;
 use App\Controllers\VariantsController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
+require_once __DIR__ . '/../Controllers/AdminUsersController.php';
+require_once __DIR__ . '/../Controllers/AdminUploadsController.php';
+require_once __DIR__ . '/../Controllers/FilesController.php';
 require_once __DIR__ . '/../Controllers/AddressController.php';
 require_once __DIR__ . '/../Controllers/AuthController.php';
 require_once __DIR__ . '/../Controllers/BrandsController.php';
 require_once __DIR__ . '/../Controllers/CartController.php';
 require_once __DIR__ . '/../Controllers/CartChargesController.php';
 require_once __DIR__ . '/../Controllers/CatalogController.php';
+require_once __DIR__ . '/../Controllers/CouponsController.php';
 require_once __DIR__ . '/../Controllers/InventoryController.php';
 require_once __DIR__ . '/../Controllers/LoveController.php';
 require_once __DIR__ . '/../Controllers/OrderController.php';
@@ -66,6 +74,8 @@ require_once __DIR__ . '/../Repositories/LoveRepository.php';
 require_once __DIR__ . '/../Repositories/OrderRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentEventRepository.php';
+require_once __DIR__ . '/../Repositories/CouponRepository.php';
+require_once __DIR__ . '/../Repositories/FileRepository.php';
 require_once __DIR__ . '/../Services/RazorpayService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
 
@@ -96,9 +106,13 @@ final class App
         $catalog = new CatalogController();
         $orders = new OrderController();
         $adminOrders = new AdminOrderController();
+        $adminUsers = new AdminUsersController();
+        $adminUploads = new AdminUploadsController();
+        $files = new FilesController();
         $products = new ProductsController();
         $variants = new VariantsController();
         $inventory = new InventoryController();
+        $coupons = new CouponsController();
         $razorpayHook = new RazorpayWebhookController();
 
         $router->add('GET', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
@@ -158,6 +172,19 @@ final class App
         });
         $router->add('PUT', self::API_PREFIX . '/inventory', static function (Request $r) use ($inventory): void {
             $inventory->update($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/coupons', static function (Request $r) use ($coupons): void {
+            $coupons->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/coupons', static function (Request $r) use ($coupons): void {
+            $coupons->create($r);
+        });
+        $router->add('PUT', self::API_PREFIX . '/coupons', static function (Request $r) use ($coupons): void {
+            $coupons->update($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/coupons', static function (Request $r) use ($coupons): void {
+            $coupons->delete($r);
         });
 
         $router->add('POST', self::API_PREFIX . '/auth/otp/send', static function (Request $r) use ($auth): void {
@@ -252,6 +279,20 @@ final class App
         });
         $router->add('PATCH', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->patch($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/admin/users', static function (Request $r) use ($adminUsers): void {
+            $adminUsers->index($r);
+        });
+        $router->add('PATCH', self::API_PREFIX . '/admin/users/role', static function (Request $r) use ($adminUsers): void {
+            $adminUsers->updateRole($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/admin/uploads', static function (Request $r) use ($adminUploads): void {
+            $adminUploads->upload($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/files', static function (Request $r) use ($files): void {
+            $files->serve($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/cart-charges', static function (Request $r) use ($cartChargesAdmin): void {
