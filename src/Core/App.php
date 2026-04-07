@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Controllers\AdminOrderController;
+use App\Controllers\AdminDashboardController;
 use App\Controllers\AdminUsersController;
 use App\Controllers\AdminAnalyticsController;
 use App\Controllers\AddressController;
@@ -25,6 +26,7 @@ use App\Controllers\RazorpayWebhookController;
 use App\Controllers\VariantsController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
+require_once __DIR__ . '/../Controllers/AdminDashboardController.php';
 require_once __DIR__ . '/../Controllers/AdminUsersController.php';
 require_once __DIR__ . '/../Controllers/AdminAnalyticsController.php';
 require_once __DIR__ . '/../Controllers/AdminUploadsController.php';
@@ -66,6 +68,7 @@ require_once __DIR__ . '/../Services/AuthService.php';
 require_once __DIR__ . '/../Repositories/PageRepository.php';
 require_once __DIR__ . '/../Repositories/BrandRepository.php';
 require_once __DIR__ . '/../Repositories/AdminAnalyticsRepository.php';
+require_once __DIR__ . '/../Repositories/AdminDashboardRepository.php';
 require_once __DIR__ . '/../Repositories/CartChargeRepository.php';
 require_once __DIR__ . '/../Repositories/CatalogRepository.php';
 require_once __DIR__ . '/../Repositories/CartRepository.php';
@@ -110,6 +113,7 @@ final class App
         $orders = new OrderController();
         $adminOrders = new AdminOrderController();
         $adminAnalytics = new AdminAnalyticsController();
+        $adminDashboard = new AdminDashboardController();
         $adminUsers = new AdminUsersController();
         $adminUploads = new AdminUploadsController();
         $files = new FilesController();
@@ -287,6 +291,10 @@ final class App
 
         $router->add('GET', self::API_PREFIX . '/admin/analytics/overview', static function (Request $r) use ($adminAnalytics): void {
             $adminAnalytics->overview($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/admin/dashboard/summary', static function (Request $r) use ($adminDashboard): void {
+            $adminDashboard->summary($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/users', static function (Request $r) use ($adminUsers): void {

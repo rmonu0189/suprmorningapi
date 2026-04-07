@@ -118,7 +118,10 @@ final class AdminUploadsController
         );
 
         $appUrl = Env::get('APP_URL', '');
-        $base = $appUrl !== '' ? rtrim($appUrl, '/') : $this->inferBaseUrl();
+        $host = $_SERVER['HTTP_HOST'] ?? '';
+        $isLocalHost = is_string($host) && ($host === 'localhost' || str_starts_with($host, 'localhost:') || str_starts_with($host, '127.0.0.1'));
+        // In local dev, APP_URL may point to production; prefer the request host so previews work.
+        $base = ($appUrl !== '' && !$isLocalHost) ? rtrim($appUrl, '/') : $this->inferBaseUrl();
         $url = $base . '/v1/files?id=' . $id . '&key=' . $accessKey;
 
         Response::json([
@@ -143,7 +146,10 @@ final class AdminUploadsController
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         if ($finfo === false) return null;
         $mime = finfo_file($finfo, $path);
-        finfo_close($finfo);
+        // PHP 8.5+: finfo objects are freed automatically.
+        if (function_exists('finfo_close')) {
+            @finfo_close($finfo);
+        }
         return is_string($mime) ? $mime : null;
     }
 

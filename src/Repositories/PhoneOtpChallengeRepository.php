@@ -29,7 +29,7 @@ final class PhoneOtpChallengeRepository
     {
         $stmt = Database::connection()->prepare(
             'SELECT id, salt_hex, code_hash, attempts FROM phone_otp_challenges
-             WHERE phone = :phone AND expires_at > NOW() LIMIT 1'
+             WHERE phone = :phone AND expires_at > CURRENT_TIMESTAMP LIMIT 1'
         );
         $stmt->execute(['phone' => $phone]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);

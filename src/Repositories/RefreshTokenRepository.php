@@ -17,7 +17,7 @@ final class RefreshTokenRepository
     {
         $stmt = Database::connection()->prepare(
             'SELECT id, user_id, expires_at FROM refresh_tokens
-             WHERE token_hash = :h AND expires_at > NOW() LIMIT 1'
+             WHERE token_hash = :h AND expires_at > CURRENT_TIMESTAMP LIMIT 1'
         );
         $stmt->execute(['h' => $tokenHash]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
