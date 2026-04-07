@@ -35,15 +35,76 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Minimal catalog tables for analytics overview.
+-- Catalog + taxonomy tables used by admin endpoints.
+CREATE TABLE IF NOT EXISTS brands (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  name TEXT NOT NULL,
+  about TEXT NULL,
+  logo TEXT NULL,
+  status INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  name TEXT NOT NULL UNIQUE,
+  slug TEXT NULL UNIQUE,
+  status INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS subcategories (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  category_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT NULL,
+  status INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (category_id, name),
+  UNIQUE (category_id, slug),
+  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT
+);
+
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  brand_id TEXT NOT NULL,
+  category_id TEXT NULL,
+  subcategory_id TEXT NULL,
+  name TEXT NOT NULL,
+  description TEXT NULL,
+  tags TEXT NULL,
+  status INTEGER NOT NULL DEFAULT 1,
+  metadata TEXT NULL,
+  FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE RESTRICT,
+  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+  FOREIGN KEY (subcategory_id) REFERENCES subcategories(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS variants (
   id TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  product_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  sku TEXT NOT NULL UNIQUE,
+  price REAL NOT NULL,
+  mrp REAL NOT NULL,
+  images TEXT NULL,
+  metadata TEXT NULL,
+  status INTEGER NOT NULL DEFAULT 1,
+  discount_tag TEXT NULL,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS inventory (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  variant_id TEXT NOT NULL UNIQUE,
+  quantity INTEGER NOT NULL DEFAULT 0,
+  reserved_quantity INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (variant_id) REFERENCES variants(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS orders (

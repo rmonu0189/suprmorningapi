@@ -134,8 +134,94 @@ final class Database
                 is_active INTEGER NOT NULL DEFAULT 1
             )"
         );
-        $pdo->exec('CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS variants (id TEXT PRIMARY KEY, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+        // Core taxonomy + catalog tables used by admin endpoints.
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS categories (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                name TEXT NOT NULL UNIQUE,
+                slug TEXT NULL UNIQUE,
+                status INTEGER NOT NULL DEFAULT 1,
+                sort_order INTEGER NOT NULL DEFAULT 0
+            )"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS subcategories (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                category_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                slug TEXT NULL,
+                status INTEGER NOT NULL DEFAULT 1,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                UNIQUE (category_id, name),
+                UNIQUE (category_id, slug),
+                FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT
+            )"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS products (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                brand_id TEXT NOT NULL,
+                category_id TEXT NULL,
+                subcategory_id TEXT NULL,
+                name TEXT NOT NULL,
+                description TEXT NULL,
+                tags TEXT NULL,
+                status INTEGER NOT NULL DEFAULT 1,
+                metadata TEXT NULL,
+                FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE RESTRICT,
+                FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+                FOREIGN KEY (subcategory_id) REFERENCES subcategories(id) ON DELETE SET NULL
+            )"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS variants (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                product_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                sku TEXT NOT NULL UNIQUE,
+                price REAL NOT NULL,
+                mrp REAL NOT NULL,
+                images TEXT NULL,
+                metadata TEXT NULL,
+                status INTEGER NOT NULL DEFAULT 1,
+                discount_tag TEXT NULL,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+            )"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS inventory (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                variant_id TEXT NOT NULL UNIQUE,
+                quantity INTEGER NOT NULL DEFAULT 0,
+                reserved_quantity INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (variant_id) REFERENCES variants(id) ON DELETE CASCADE
+            )"
+        );
+
+        // If the DB existed with older minimal tables, ensure required columns exist.
+        self::ensureSqliteColumn($pdo, 'products', 'brand_id', 'TEXT', "''");
+        self::ensureSqliteColumn($pdo, 'products', 'category_id', 'TEXT', 'NULL');
+        self::ensureSqliteColumn($pdo, 'products', 'subcategory_id', 'TEXT', 'NULL');
+        self::ensureSqliteColumn($pdo, 'products', 'name', 'TEXT', "''");
+        self::ensureSqliteColumn($pdo, 'products', 'description', 'TEXT', 'NULL');
+        self::ensureSqliteColumn($pdo, 'products', 'tags', 'TEXT', 'NULL');
+        self::ensureSqliteColumn($pdo, 'products', 'status', 'INTEGER', '1');
+        self::ensureSqliteColumn($pdo, 'products', 'metadata', 'TEXT', 'NULL');
+
+        self::ensureSqliteColumn($pdo, 'variants', 'product_id', 'TEXT', "''");
+        self::ensureSqliteColumn($pdo, 'variants', 'name', 'TEXT', "''");
+        self::ensureSqliteColumn($pdo, 'variants', 'sku', 'TEXT', "''");
+        self::ensureSqliteColumn($pdo, 'variants', 'price', 'REAL', '0');
+        self::ensureSqliteColumn($pdo, 'variants', 'mrp', 'REAL', '0');
+        self::ensureSqliteColumn($pdo, 'variants', 'images', 'TEXT', 'NULL');
+        self::ensureSqliteColumn($pdo, 'variants', 'metadata', 'TEXT', 'NULL');
+        self::ensureSqliteColumn($pdo, 'variants', 'status', 'INTEGER', '1');
+        self::ensureSqliteColumn($pdo, 'variants', 'discount_tag', 'TEXT', 'NULL');
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS orders (
                 id TEXT PRIMARY KEY,
@@ -204,6 +290,24 @@ final class Database
                 'grand_total' => 249.0,
                 'currency' => 'INR',
             ]);
+        }
+    }
+
+    private static function ensureSqliteColumn(PDO $pdo, string $table, string $column, string $type, string $defaultSql): void
+    {
+        try {
+            $stmt = $pdo->query("PRAGMA table_info(" . $table . ")");
+            if ($stmt === false) return;
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!is_array($rows)) return;
+            foreach ($rows as $row) {
+                if (is_array($row) && (string) ($row['name'] ?? '') === $column) {
+                    return;
+                }
+            }
+            $pdo->exec("ALTER TABLE " . $table . " ADD COLUMN " . $column . " " . $type . " DEFAULT " . $defaultSql);
+        } catch (\Throwable $e) {
+            return;
         }
     }
 }
