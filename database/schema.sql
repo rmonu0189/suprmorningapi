@@ -75,18 +75,56 @@ CREATE TABLE IF NOT EXISTS brands (
     KEY idx_brands_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS categories (
+    id CHAR(36) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NULL,
+    status TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_categories_name (name),
+    UNIQUE KEY uq_categories_slug (slug),
+    KEY idx_categories_status (status),
+    KEY idx_categories_sort (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS subcategories (
+    id CHAR(36) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    category_id CHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NULL,
+    status TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_subcategories_category_name (category_id, name),
+    UNIQUE KEY uq_subcategories_category_slug (category_id, slug),
+    KEY idx_subcategories_category (category_id),
+    KEY idx_subcategories_status (status),
+    KEY idx_subcategories_sort (sort_order),
+    CONSTRAINT fk_subcategories_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS products (
     id CHAR(36) NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     brand_id CHAR(36) NOT NULL,
+    category_id CHAR(36) NULL,
+    subcategory_id CHAR(36) NULL,
     name VARCHAR(512) NOT NULL,
     description TEXT NULL,
+    tags JSON NULL,
     status TINYINT(1) NOT NULL DEFAULT 1,
     metadata JSON NULL,
     PRIMARY KEY (id),
     KEY idx_products_brand (brand_id),
+    KEY idx_products_category_id (category_id),
+    KEY idx_products_subcategory_id (subcategory_id),
     KEY idx_products_status (status),
-    CONSTRAINT fk_products_brand FOREIGN KEY (brand_id) REFERENCES brands (id) ON DELETE RESTRICT
+    CONSTRAINT fk_products_brand FOREIGN KEY (brand_id) REFERENCES brands (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
+    CONSTRAINT fk_products_subcategory FOREIGN KEY (subcategory_id) REFERENCES subcategories (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS variants (

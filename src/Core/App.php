@@ -24,6 +24,8 @@ use App\Controllers\PagesController;
 use App\Controllers\ProductsController;
 use App\Controllers\RazorpayWebhookController;
 use App\Controllers\VariantsController;
+use App\Controllers\CategoriesController;
+use App\Controllers\SubcategoriesController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
 require_once __DIR__ . '/../Controllers/AdminDashboardController.php';
@@ -42,6 +44,8 @@ require_once __DIR__ . '/../Controllers/InventoryController.php';
 require_once __DIR__ . '/../Controllers/LoveController.php';
 require_once __DIR__ . '/../Controllers/OrderController.php';
 require_once __DIR__ . '/../Controllers/ProductsController.php';
+require_once __DIR__ . '/../Controllers/CategoriesController.php';
+require_once __DIR__ . '/../Controllers/SubcategoriesController.php';
 require_once __DIR__ . '/../Controllers/PagesController.php';
 require_once __DIR__ . '/../Controllers/RazorpayWebhookController.php';
 require_once __DIR__ . '/../Controllers/VariantsController.php';
@@ -73,6 +77,8 @@ require_once __DIR__ . '/../Repositories/CartChargeRepository.php';
 require_once __DIR__ . '/../Repositories/CatalogRepository.php';
 require_once __DIR__ . '/../Repositories/CartRepository.php';
 require_once __DIR__ . '/../Repositories/ProductRepository.php';
+require_once __DIR__ . '/../Repositories/CategoryRepository.php';
+require_once __DIR__ . '/../Repositories/SubcategoryRepository.php';
 require_once __DIR__ . '/../Repositories/VariantRepository.php';
 require_once __DIR__ . '/../Repositories/InventoryRepository.php';
 require_once __DIR__ . '/../Repositories/AddressRepository.php';
@@ -118,6 +124,8 @@ final class App
         $adminUploads = new AdminUploadsController();
         $files = new FilesController();
         $products = new ProductsController();
+        $categories = new CategoriesController();
+        $subcategories = new SubcategoriesController();
         $variants = new VariantsController();
         $inventory = new InventoryController();
         $coupons = new CouponsController();
@@ -160,6 +168,32 @@ final class App
         });
         $router->add('DELETE', self::API_PREFIX . '/products', static function (Request $r) use ($products): void {
             $products->delete($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/categories', static function (Request $r) use ($categories): void {
+            $categories->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/categories', static function (Request $r) use ($categories): void {
+            $categories->create($r);
+        });
+        $router->add('PUT', self::API_PREFIX . '/categories', static function (Request $r) use ($categories): void {
+            $categories->update($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/categories', static function (Request $r) use ($categories): void {
+            $categories->delete($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/subcategories', static function (Request $r) use ($subcategories): void {
+            $subcategories->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/subcategories', static function (Request $r) use ($subcategories): void {
+            $subcategories->create($r);
+        });
+        $router->add('PUT', self::API_PREFIX . '/subcategories', static function (Request $r) use ($subcategories): void {
+            $subcategories->update($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/subcategories', static function (Request $r) use ($subcategories): void {
+            $subcategories->delete($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/variants', static function (Request $r) use ($variants): void {

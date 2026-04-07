@@ -14,7 +14,7 @@ final class ProductRepository
      */
     public static function findAll(?string $brandId = null): array
     {
-        $sql = 'SELECT id, created_at, brand_id, name, description, status, metadata
+        $sql = 'SELECT id, created_at, brand_id, category_id, subcategory_id, name, description, tags, status, metadata
                 FROM products';
         $params = [];
         if ($brandId !== null && $brandId !== '') {
@@ -43,7 +43,7 @@ final class ProductRepository
     public static function findById(string $id): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT id, created_at, brand_id, name, description, status, metadata
+            'SELECT id, created_at, brand_id, category_id, subcategory_id, name, description, tags, status, metadata
              FROM products WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
@@ -58,21 +58,28 @@ final class ProductRepository
     public static function insert(
         string $id,
         string $brandId,
+        ?string $categoryId,
+        ?string $subcategoryId,
         string $name,
         ?string $description,
+        ?array $tags,
         bool $status,
         ?array $metadata
     ): void {
         $metaJson = self::encodeMetadata($metadata);
+        $tagsJson = self::encodeTags($tags);
         $stmt = Database::connection()->prepare(
-            'INSERT INTO products (id, brand_id, name, description, status, metadata)
-             VALUES (:id, :bid, :name, :desc, :status, :meta)'
+            'INSERT INTO products (id, brand_id, category_id, subcategory_id, name, description, tags, status, metadata)
+             VALUES (:id, :bid, :catid, :subid, :name, :desc, :tags, :status, :meta)'
         );
         $stmt->execute([
             'id' => $id,
             'bid' => $brandId,
+            'catid' => $categoryId,
+            'subid' => $subcategoryId,
             'name' => $name,
             'desc' => $description,
+            'tags' => $tagsJson,
             'status' => $status ? 1 : 0,
             'meta' => $metaJson,
         ]);
@@ -84,9 +91,15 @@ final class ProductRepository
     public static function update(
         string $id,
         ?string $brandId,
+        ?string $categoryId,
+        bool $categoryIdProvided,
+        ?string $subcategoryId,
+        bool $subcategoryIdProvided,
         ?string $name,
         ?string $description,
         bool $descriptionProvided,
+        ?array $tags,
+        bool $tagsProvided,
         ?bool $status,
         ?array $metadata,
         bool $metadataProvided
@@ -98,6 +111,14 @@ final class ProductRepository
             $sets[] = 'brand_id = :bid';
             $params['bid'] = $brandId;
         }
+        if ($categoryIdProvided) {
+            $sets[] = 'category_id = :catid';
+            $params['catid'] = $categoryId;
+        }
+        if ($subcategoryIdProvided) {
+            $sets[] = 'subcategory_id = :subid';
+            $params['subid'] = $subcategoryId;
+        }
         if ($name !== null) {
             $sets[] = 'name = :name';
             $params['name'] = $name;
@@ -105,6 +126,10 @@ final class ProductRepository
         if ($descriptionProvided) {
             $sets[] = 'description = :desc';
             $params['desc'] = $description;
+        }
+        if ($tagsProvided) {
+            $sets[] = 'tags = :tags';
+            $params['tags'] = self::encodeTags($tags);
         }
         if ($status !== null) {
             $sets[] = 'status = :status';
@@ -161,13 +186,18 @@ final class ProductRepository
     private static function normalizeRow(array $row): array
     {
         $desc = $row['description'];
+        $catId = $row['category_id'] ?? null;
+        $subId = $row['subcategory_id'] ?? null;
 
         return [
             'id' => (string) $row['id'],
             'created_at' => (string) $row['created_at'],
             'brand_id' => (string) $row['brand_id'],
+            'category_id' => $catId === null || $catId === '' ? null : (string) $catId,
+            'subcategory_id' => $subId === null || $subId === '' ? null : (string) $subId,
             'name' => (string) $row['name'],
             'description' => $desc === null || $desc === '' ? null : (string) $desc,
+            'tags' => self::decodeTags($row['tags'] ?? null),
             'status' => (bool) (int) $row['status'],
             'metadata' => self::decodeMetadata($row['metadata'] ?? null),
         ];
@@ -196,5 +226,47 @@ final class ProductRepository
         $j = json_encode($metadata, JSON_UNESCAPED_UNICODE);
 
         return $j === false ? '{}' : $j;
+    }
+
+    /** @return list<string> */
+    private static function decodeTags(mixed $json): array
+    {
+        if ($json === null || $json === '') {
+            return [];
+        }
+        if (is_string($json)) {
+            $d = json_decode($json, true);
+            if (is_array($d)) {
+                $out = [];
+                foreach ($d as $item) {
+                    if (is_string($item)) {
+                        $t = trim($item);
+                        if ($t !== '') $out[] = $t;
+                    }
+                }
+                return $out;
+            }
+        }
+        return [];
+    }
+
+    /** @param list<string>|null $tags */
+    private static function encodeTags(?array $tags): ?string
+    {
+        if ($tags === null) {
+            return null;
+        }
+        $clean = [];
+        foreach ($tags as $t) {
+            if (is_string($t)) {
+                $v = trim($t);
+                if ($v !== '') $clean[] = $v;
+            }
+        }
+        if ($clean === []) {
+            return null;
+        }
+        $j = json_encode(array_values($clean), JSON_UNESCAPED_UNICODE);
+        return $j === false ? null : $j;
     }
 }

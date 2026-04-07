@@ -12,7 +12,9 @@ use App\Core\Uuid;
 use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\BrandRepository;
+use App\Repositories\CategoryRepository;
 use App\Repositories\ProductRepository;
+use App\Repositories\SubcategoryRepository;
 use PDOException;
 
 final class ProductsController
@@ -76,7 +78,48 @@ final class ProductsController
             throw new ValidationException('Invalid name', ['name' => 'Required.']);
         }
 
+        $categoryId = null;
+        if (array_key_exists('category_id', $body)) {
+            $cid = trim((string) ($body['category_id'] ?? ''));
+            if ($cid !== '') {
+                if (!Uuid::isValid($cid)) {
+                    throw new ValidationException('Invalid category_id', ['category_id' => 'Must be a valid UUID.']);
+                }
+                if (CategoryRepository::findById($cid) === null) {
+                    Response::json(['error' => 'Not Found', 'errors' => ['category_id' => 'Category does not exist.']], 404);
+                    return;
+                }
+                $categoryId = $cid;
+            }
+        }
+
+        $subcategoryId = null;
+        if (array_key_exists('subcategory_id', $body)) {
+            $sid = trim((string) ($body['subcategory_id'] ?? ''));
+            if ($sid !== '') {
+                if (!Uuid::isValid($sid)) {
+                    throw new ValidationException('Invalid subcategory_id', ['subcategory_id' => 'Must be a valid UUID.']);
+                }
+                $subRow = SubcategoryRepository::findById($sid);
+                if ($subRow === null) {
+                    Response::json(['error' => 'Not Found', 'errors' => ['subcategory_id' => 'Subcategory does not exist.']], 404);
+                    return;
+                }
+                $subcategoryId = $sid;
+                if ($categoryId === null) {
+                    throw new ValidationException('Invalid subcategory_id', ['subcategory_id' => 'category_id is required when subcategory_id is set.']);
+                }
+                if ((string) ($subRow['category_id'] ?? '') !== $categoryId) {
+                    throw new ValidationException('Invalid subcategory_id', ['subcategory_id' => 'Subcategory does not belong to the selected category.']);
+                }
+            }
+        }
+
         $description = self::optionalStringOrNull($body, 'description');
+        $tags = null;
+        if (array_key_exists('tags', $body)) {
+            $tags = self::parseTags($body['tags']);
+        }
         $status = true;
         if (array_key_exists('status', $body)) {
             $status = self::parseBool($body['status'], 'status');
@@ -89,7 +132,7 @@ final class ProductsController
         $id = Uuid::v4();
 
         try {
-            ProductRepository::insert($id, $brandId, $name, $description, $status, $metadata);
+            ProductRepository::insert($id, $brandId, $categoryId, $subcategoryId, $name, $description, $tags, $status, $metadata);
         } catch (PDOException $e) {
             throw new HttpException('Could not create product', 500);
         }
@@ -149,6 +192,67 @@ final class ProductsController
             $description = self::nullableTextValue($body['description'], 'description');
         }
 
+        $categoryId = null;
+        $categoryIdProvided = array_key_exists('category_id', $body);
+        if ($categoryIdProvided) {
+            $cid = trim((string) ($body['category_id'] ?? ''));
+            if ($cid === '') {
+                $categoryId = null;
+            } else {
+                if (!Uuid::isValid($cid)) {
+                    throw new ValidationException('Invalid category_id', ['category_id' => 'Must be a valid UUID.']);
+                }
+                if (CategoryRepository::findById($cid) === null) {
+                    Response::json(['error' => 'Not Found', 'errors' => ['category_id' => 'Category does not exist.']], 404);
+                    return;
+                }
+                $categoryId = $cid;
+            }
+        }
+
+        $subcategoryId = null;
+        $subcategoryIdProvided = array_key_exists('subcategory_id', $body);
+        if ($subcategoryIdProvided) {
+            $sid = trim((string) ($body['subcategory_id'] ?? ''));
+            if ($sid === '') {
+                $subcategoryId = null;
+            } else {
+                if (!Uuid::isValid($sid)) {
+                    throw new ValidationException('Invalid subcategory_id', ['subcategory_id' => 'Must be a valid UUID.']);
+                }
+                $subRow = SubcategoryRepository::findById($sid);
+                if ($subRow === null) {
+                    Response::json(['error' => 'Not Found', 'errors' => ['subcategory_id' => 'Subcategory does not exist.']], 404);
+                    return;
+                }
+                $subcategoryId = $sid;
+            }
+        }
+        // Cross-field validation (also handles clearing rules).
+        if ($subcategoryIdProvided && $subcategoryId !== null) {
+            // Determine the effective category_id after this update.
+            $current = ProductRepository::findById($id);
+            $effectiveCategoryId = $categoryIdProvided ? $categoryId : ($current['category_id'] ?? null);
+            if ($effectiveCategoryId === null) {
+                throw new ValidationException('Invalid subcategory_id', ['subcategory_id' => 'category_id is required when subcategory_id is set.']);
+            }
+            $subRow = SubcategoryRepository::findById($subcategoryId);
+            if ($subRow !== null && (string) ($subRow['category_id'] ?? '') !== (string) $effectiveCategoryId) {
+                throw new ValidationException('Invalid subcategory_id', ['subcategory_id' => 'Subcategory does not belong to the selected category.']);
+            }
+        }
+        if ($categoryIdProvided && $categoryId === null && !$subcategoryIdProvided) {
+            // If category cleared explicitly, also clear subcategory for consistency.
+            $subcategoryIdProvided = true;
+            $subcategoryId = null;
+        }
+
+        $tags = null;
+        $tagsProvided = array_key_exists('tags', $body);
+        if ($tagsProvided) {
+            $tags = self::parseTags($body['tags']);
+        }
+
         $status = null;
         if (array_key_exists('status', $body)) {
             $status = self::parseBool($body['status'], 'status');
@@ -161,10 +265,11 @@ final class ProductsController
         }
 
         if (
-            $brandId === null && $name === null && !$descriptionProvided && $status === null && !$metadataProvided
+            $brandId === null && $name === null && !$descriptionProvided
+            && !$tagsProvided && $status === null && !$metadataProvided && !$categoryIdProvided && !$subcategoryIdProvided
         ) {
             throw new ValidationException('Nothing to update', [
-                'body' => 'Provide at least one of: brand_id, name, description, status, metadata.',
+                'body' => 'Provide at least one of: brand_id, category_id, subcategory_id, name, description, tags, status, metadata.',
             ]);
         }
 
@@ -172,9 +277,15 @@ final class ProductsController
             ProductRepository::update(
                 $id,
                 $brandId,
+                $categoryId,
+                $categoryIdProvided,
+                $subcategoryId,
+                $subcategoryIdProvided,
                 $name,
                 $description,
                 $descriptionProvided,
+                $tags,
+                $tagsProvided,
                 $status,
                 $metadata,
                 $metadataProvided
@@ -287,5 +398,25 @@ final class ProductsController
         }
 
         return $v;
+    }
+
+    /** @return list<string>|null */
+    private static function parseTags(mixed $v): ?array
+    {
+        if ($v === null) {
+            return null;
+        }
+        if (!is_array($v)) {
+            throw new ValidationException('Invalid tags', ['tags' => 'Must be an array of strings or null.']);
+        }
+        $out = [];
+        foreach ($v as $item) {
+            if (!is_string($item)) {
+                throw new ValidationException('Invalid tags', ['tags' => 'Must be an array of strings or null.']);
+            }
+            $t = trim($item);
+            if ($t !== '') $out[] = $t;
+        }
+        return $out === [] ? null : $out;
     }
 }
