@@ -107,6 +107,17 @@ CREATE TABLE IF NOT EXISTS inventory (
   FOREIGN KEY (variant_id) REFERENCES variants(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  variant_id TEXT NOT NULL,
+  delta_quantity INTEGER NOT NULL,
+  note TEXT NULL,
+  created_by TEXT NULL,
+  FOREIGN KEY (variant_id) REFERENCES variants(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,

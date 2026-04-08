@@ -18,6 +18,7 @@ use App\Controllers\CatalogController;
 use App\Controllers\CouponsController;
 use App\Controllers\FilesController;
 use App\Controllers\InventoryController;
+use App\Controllers\InventoryMovementsController;
 use App\Controllers\LoveController;
 use App\Controllers\OrderController;
 use App\Controllers\PagesController;
@@ -41,6 +42,7 @@ require_once __DIR__ . '/../Controllers/CartChargesController.php';
 require_once __DIR__ . '/../Controllers/CatalogController.php';
 require_once __DIR__ . '/../Controllers/CouponsController.php';
 require_once __DIR__ . '/../Controllers/InventoryController.php';
+require_once __DIR__ . '/../Controllers/InventoryMovementsController.php';
 require_once __DIR__ . '/../Controllers/LoveController.php';
 require_once __DIR__ . '/../Controllers/OrderController.php';
 require_once __DIR__ . '/../Controllers/ProductsController.php';
@@ -81,6 +83,7 @@ require_once __DIR__ . '/../Repositories/CategoryRepository.php';
 require_once __DIR__ . '/../Repositories/SubcategoryRepository.php';
 require_once __DIR__ . '/../Repositories/VariantRepository.php';
 require_once __DIR__ . '/../Repositories/InventoryRepository.php';
+require_once __DIR__ . '/../Repositories/InventoryMovementRepository.php';
 require_once __DIR__ . '/../Repositories/AddressRepository.php';
 require_once __DIR__ . '/../Repositories/LoveRepository.php';
 require_once __DIR__ . '/../Repositories/OrderRepository.php';
@@ -128,6 +131,7 @@ final class App
         $subcategories = new SubcategoriesController();
         $variants = new VariantsController();
         $inventory = new InventoryController();
+        $inventoryMovements = new InventoryMovementsController();
         $coupons = new CouponsController();
         $razorpayHook = new RazorpayWebhookController();
 
@@ -214,6 +218,13 @@ final class App
         });
         $router->add('PUT', self::API_PREFIX . '/inventory', static function (Request $r) use ($inventory): void {
             $inventory->update($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/inventory/movements', static function (Request $r) use ($inventoryMovements): void {
+            $inventoryMovements->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/inventory/movements', static function (Request $r) use ($inventoryMovements): void {
+            $inventoryMovements->create($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/coupons', static function (Request $r) use ($coupons): void {
