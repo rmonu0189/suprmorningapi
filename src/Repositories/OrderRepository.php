@@ -305,6 +305,189 @@ final class OrderRepository
     }
 
     /**
+     * Admin: deliverable orders for a delivery service view.
+     *
+     * Default definition (when $orderStatuses is null): paid orders that are not yet delivered.
+     *
+     * @param list<string>|null $orderStatuses
+     * @return list<array<string, mixed>>
+     */
+    public static function findDeliverableOrdersForAdmin(?string $deliveryDateYmd, ?array $orderStatuses, bool $includeDelivered): array
+    {
+        $where = ['1=1'];
+        $params = [];
+
+        // Paid orders only.
+        $where[] = 'o.payment_status = :ps';
+        $params['ps'] = 'success';
+
+        if ($deliveryDateYmd !== null && $deliveryDateYmd !== '') {
+            $where[] = 'o.delivery_date = :dd';
+            $params['dd'] = $deliveryDateYmd;
+        }
+
+        if (!$includeDelivered) {
+            $where[] = '(o.delivered_at IS NULL OR o.delivered_at = \'\')';
+        }
+
+        if ($orderStatuses !== null && $orderStatuses !== []) {
+            $in = [];
+            foreach (array_values($orderStatuses) as $i => $st) {
+                $k = 'os' . $i;
+                $in[] = ':' . $k;
+                $params[$k] = $st;
+            }
+            $where[] = 'o.order_status IN (' . implode(', ', $in) . ')';
+        } else {
+            // Default deliverable statuses.
+            $where[] = 'o.order_status IN (\'placed\', \'picked\', \'processing\', \'shipped\')';
+        }
+
+        $w = implode(' AND ', $where);
+        $sql = "SELECT o.id, o.order_status, o.payment_status, o.delivery_date, o.delivery_slot, o.delivery_type,
+                       o.grand_total, o.currency, o.recipient_name, o.recipient_phone, o.full_address,
+                       o.city, o.state, o.country, o.postal_code, o.created_at, o.delivered_at,
+                       COALESCE(oi_agg.line_count, 0) AS item_lines,
+                       COALESCE(oi_agg.total_qty, 0) AS item_qty,
+                       COALESCE(dic_agg.reviewed_lines, 0) AS reviewed_lines,
+                       COALESCE(dic_agg.issue_lines, 0) AS issue_lines,
+                       u.phone AS customer_phone, u.email AS customer_email, u.full_name AS customer_full_name
+                FROM orders o
+                LEFT JOIN users u ON u.id = o.user_id
+                LEFT JOIN (
+                    SELECT order_id, COUNT(*) AS line_count, SUM(quantity) AS total_qty
+                    FROM order_items
+                    GROUP BY order_id
+                ) oi_agg ON oi_agg.order_id = o.id
+                LEFT JOIN (
+                    SELECT
+                        oi.order_id AS order_id,
+                        SUM(CASE WHEN dic.status IS NOT NULL AND dic.status != '' AND dic.status != 'pending' THEN 1 ELSE 0 END) AS reviewed_lines,
+                        SUM(CASE WHEN dic.status IN ('short', 'missing', 'not_available') THEN 1 ELSE 0 END) AS issue_lines
+                    FROM order_items oi
+                    LEFT JOIN delivery_item_checks dic ON dic.order_item_id = oi.id
+                    GROUP BY oi.order_id
+                ) dic_agg ON dic_agg.order_id = o.id
+                WHERE {$w}
+                ORDER BY o.delivery_date ASC, o.created_at ASC, o.id ASC";
+
+        $stmt = Database::connection()->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v, PDO::PARAM_STR);
+        }
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $orderOnly = self::stripJoinedOrderRow($row);
+            $base = self::formatOrderHeader($orderOnly, []);
+            $base['customer'] = [
+                'phone' => isset($row['customer_phone']) && $row['customer_phone'] !== '' ? (string) $row['customer_phone'] : null,
+                'email' => isset($row['customer_email']) && $row['customer_email'] !== '' ? (string) $row['customer_email'] : null,
+                'full_name' => isset($row['customer_full_name']) && $row['customer_full_name'] !== '' ? (string) $row['customer_full_name'] : null,
+            ];
+            $base['item_lines'] = (int) ($row['item_lines'] ?? 0);
+            $base['item_qty'] = (int) ($row['item_qty'] ?? 0);
+            $base['reviewed_lines'] = (int) ($row['reviewed_lines'] ?? 0);
+            $base['issue_lines'] = (int) ($row['issue_lines'] ?? 0);
+            $out[] = $base;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Admin: fetch order items for many orders in one query and map to variants by SKU (best-effort).
+     *
+     * @param list<string> $orderIds
+     * @return list<array<string, mixed>>
+     */
+    public static function findOrderItemsForOrdersWithVariantId(array $orderIds): array
+    {
+        $ids = array_values(array_filter(array_map('trim', $orderIds), static fn ($x) => $x !== ''));
+        if ($ids === []) return [];
+
+        // Build placeholders.
+        $ph = implode(', ', array_fill(0, count($ids), '?'));
+        $sql = "SELECT oi.order_id, oi.id, oi.image, oi.brand_name, oi.product_name, oi.variant_name, oi.quantity, oi.unit_price, oi.unit_mrp, oi.sku,
+                       v.id AS variant_id,
+                       i.quantity AS inv_quantity,
+                       i.reserved_quantity AS inv_reserved,
+                       dic.status AS check_status,
+                       dic.picked_quantity AS picked_quantity,
+                       dic.note AS check_note,
+                       dic.updated_at AS check_updated_at
+                FROM order_items oi
+                LEFT JOIN variants v ON v.sku = oi.sku
+                LEFT JOIN inventory i ON i.variant_id = v.id
+                LEFT JOIN delivery_item_checks dic ON dic.order_item_id = oi.id
+                WHERE oi.order_id IN ({$ph})
+                ORDER BY oi.order_id ASC, oi.created_at ASC, oi.id ASC";
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute($ids);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) return [];
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $out[] = [
+                'order_id' => (string) ($row['order_id'] ?? ''),
+                'id' => (string) ($row['id'] ?? ''),
+                'image' => (string) ($row['image'] ?? ''),
+                'brand_name' => (string) ($row['brand_name'] ?? ''),
+                'product_name' => (string) ($row['product_name'] ?? ''),
+                'variant_name' => (string) ($row['variant_name'] ?? ''),
+                'quantity' => (int) ($row['quantity'] ?? 0),
+                'unit_price' => (float) ($row['unit_price'] ?? 0),
+                'unit_mrp' => (float) ($row['unit_mrp'] ?? 0),
+                'sku' => (string) ($row['sku'] ?? ''),
+                'variant_id' => isset($row['variant_id']) && $row['variant_id'] !== '' ? (string) $row['variant_id'] : null,
+                'inv_quantity' => isset($row['inv_quantity']) ? (int) $row['inv_quantity'] : null,
+                'inv_reserved_quantity' => isset($row['inv_reserved']) ? (int) $row['inv_reserved'] : null,
+                'check_status' => isset($row['check_status']) && $row['check_status'] !== '' ? (string) $row['check_status'] : null,
+                'picked_quantity' => isset($row['picked_quantity']) ? (int) $row['picked_quantity'] : null,
+                'check_note' => isset($row['check_note']) && $row['check_note'] !== '' ? (string) $row['check_note'] : null,
+                'check_updated_at' => isset($row['check_updated_at']) && $row['check_updated_at'] !== ''
+                    ? (string) $row['check_updated_at'] : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Admin: upsert delivery checks for order items.
+     *
+     * @param list<array{order_item_id: string, status: string, picked_quantity: int, note: string|null}> $checks
+     */
+    public static function upsertDeliveryItemChecks(string $orderId, array $checks): void
+    {
+        $pdo = Database::connection();
+        $stmt = $pdo->prepare(
+            'INSERT INTO delivery_item_checks (id, order_id, order_item_id, status, picked_quantity, note)
+             VALUES (:id, :oid, :oiid, :st, :pq, :note)
+             ON DUPLICATE KEY UPDATE status = VALUES(status), picked_quantity = VALUES(picked_quantity), note = VALUES(note)'
+        );
+
+        foreach ($checks as $c) {
+            $stmt->execute([
+                'id' => \App\Core\Uuid::v4(),
+                'oid' => $orderId,
+                'oiid' => $c['order_item_id'],
+                'st' => $c['status'],
+                'pq' => (int) $c['picked_quantity'],
+                'note' => $c['note'],
+            ]);
+        }
+    }
+
+    /**
      * @param array<string, mixed> $row joined row with o.* + customer_* aliases
      * @return array<string, mixed>
      */

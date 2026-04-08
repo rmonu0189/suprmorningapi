@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Controllers\AdminOrderController;
+use App\Controllers\AdminDeliveryController;
 use App\Controllers\AdminDashboardController;
 use App\Controllers\AdminUsersController;
 use App\Controllers\AdminAnalyticsController;
@@ -29,6 +30,7 @@ use App\Controllers\CategoriesController;
 use App\Controllers\SubcategoriesController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
+require_once __DIR__ . '/../Controllers/AdminDeliveryController.php';
 require_once __DIR__ . '/../Controllers/AdminDashboardController.php';
 require_once __DIR__ . '/../Controllers/AdminUsersController.php';
 require_once __DIR__ . '/../Controllers/AdminAnalyticsController.php';
@@ -121,6 +123,7 @@ final class App
         $catalog = new CatalogController();
         $orders = new OrderController();
         $adminOrders = new AdminOrderController();
+        $adminDelivery = new AdminDeliveryController();
         $adminAnalytics = new AdminAnalyticsController();
         $adminDashboard = new AdminDashboardController();
         $adminUsers = new AdminUsersController();
@@ -332,6 +335,16 @@ final class App
         });
         $router->add('PATCH', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->patch($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/admin/delivery', static function (Request $r) use ($adminDelivery): void {
+            $adminDelivery->index($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/admin/delivery/order', static function (Request $r) use ($adminDelivery): void {
+            $adminDelivery->show($r);
+        });
+        $router->add('PATCH', self::API_PREFIX . '/admin/delivery/order-checks', static function (Request $r) use ($adminDelivery): void {
+            $adminDelivery->patchChecks($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/analytics/overview', static function (Request $r) use ($adminAnalytics): void {
