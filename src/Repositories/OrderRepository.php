@@ -10,34 +10,45 @@ use PDO;
 
 final class OrderRepository
 {
-    private static function generateOrderCode(): string
+    private static function prefixFromIndex(int $idx): string
     {
-        // Format: ABCD-123456 (vehicle-number-like, easy to read/call out).
-        $letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // avoid I/O confusion
-        $out = '';
-        for ($i = 0; $i < 4; $i++) {
-            $out .= $letters[random_int(0, strlen($letters) - 1)];
+        // Base-26 (A-Z) into 4 letters. 0 => AAAA, 1 => AAAB, ...
+        $n = $idx;
+        $letters = ['A', 'A', 'A', 'A'];
+        for ($pos = 3; $pos >= 0; $pos--) {
+            $letters[$pos] = chr(ord('A') + ($n % 26));
+            $n = intdiv($n, 26);
         }
-        $num = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-
-        return $out . '-' . $num;
+        return implode('', $letters);
     }
 
-    private static function generateUniqueOrderCode(): string
+    private static function formatOrderCodeFromNumber(int $n): string
     {
-        // Use a few retries; uniqueness is enforced by DB constraint.
-        for ($i = 0; $i < 8; $i++) {
-            $code = self::generateOrderCode();
-            $stmt = Database::connection()->prepare('SELECT id FROM orders WHERE order_code = :c LIMIT 1');
-            $stmt->execute(['c' => $code]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!is_array($row)) {
-                return $code;
-            }
+        // 1 => AAAA-000001, 999999 => AAAA-999999, 1000000 => AAAB-000001, etc.
+        $perPrefix = 999999;
+        $group = intdiv($n - 1, $perPrefix);
+        $within = (($n - 1) % $perPrefix) + 1;
+
+        return self::prefixFromIndex($group) . '-' . str_pad((string) $within, 6, '0', STR_PAD_LEFT);
+    }
+
+    private static function nextOrderCode(PDO $pdo): string
+    {
+        // Atomically increments a single-row counter and returns the next code.
+        // This must run inside the same transaction as order creation.
+        $pdo->exec('INSERT IGNORE INTO order_code_sequence (id, last_number) VALUES (1, 0)');
+
+        // Trick: LAST_INSERT_ID(expr) lets us read the updated value reliably on this connection.
+        $stmt = $pdo->prepare('UPDATE order_code_sequence SET last_number = LAST_INSERT_ID(last_number + 1) WHERE id = 1');
+        $stmt->execute();
+
+        $n = (int) $pdo->lastInsertId();
+        if ($n < 1) {
+            // Extremely defensive fallback (should never happen).
+            $n = 1;
         }
 
-        // Fallback: still return something; DB unique constraint will protect correctness.
-        return self::generateOrderCode();
+        return self::formatOrderCodeFromNumber($n);
     }
 
     public static function insertOrder(
@@ -71,7 +82,7 @@ final class OrderRepository
         $metaJson = $chargesMetadata !== null ? json_encode($chargesMetadata, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) : null;
 
         $pdo = Database::connection();
-        $orderCode = self::generateUniqueOrderCode();
+        $orderCode = self::nextOrderCode($pdo);
 
         $sql = 'INSERT INTO orders (id, order_code, user_id, cart_id, address_id, order_status, payment_status, delivery_date, delivery_slot,
                 delivery_type, total_mrp, tax, delivery_fee, grand_total, currency, recipient_name, recipient_phone, full_address,
@@ -114,9 +125,9 @@ final class OrderRepository
 
                 return;
             } catch (PDOException $e) {
-                // Duplicate order_code: retry with a new one.
+                // Duplicate order_code: retry with next sequence value.
                 if ($e->getCode() === '23000') {
-                    $orderCode = self::generateOrderCode();
+                    $orderCode = self::nextOrderCode($pdo);
                     continue;
                 }
                 throw $e;
@@ -127,7 +138,7 @@ final class OrderRepository
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             'id' => $id,
-            'code' => self::generateOrderCode(),
+            'code' => self::nextOrderCode($pdo),
             'uid' => $userId,
             'cid' => $cartId,
             'aid' => $addressId,
@@ -420,11 +431,12 @@ final class OrderRepository
             $where[] = 'o.order_status IN (' . implode(', ', $in) . ')';
         } else {
             // Default deliverable statuses.
-            $where[] = 'o.order_status IN (\'placed\', \'picked\', \'processing\', \'shipped\')';
+            // Backward compatible: older rows may still use 'picked' for the same meaning as 'packed'.
+            $where[] = 'o.order_status IN (\'placed\', \'packed\', \'picked\', \'processing\', \'shipped\')';
         }
 
         $w = implode(' AND ', $where);
-        $sql = "SELECT o.id, o.order_status, o.payment_status, o.delivery_date, o.delivery_slot, o.delivery_type,
+        $sql = "SELECT o.id, o.order_code, o.order_status, o.payment_status, o.delivery_date, o.delivery_slot, o.delivery_type,
                        o.grand_total, o.currency, o.recipient_name, o.recipient_phone, o.full_address,
                        o.city, o.state, o.country, o.postal_code, o.created_at, o.delivered_at,
                        COALESCE(oi_agg.line_count, 0) AS item_lines,

@@ -49,6 +49,15 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS order_code_sequence (
+    id TINYINT NOT NULL,
+    last_number BIGINT NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO order_code_sequence (id, last_number) VALUES (1, 0);
+
 CREATE TABLE IF NOT EXISTS pages (
     id CHAR(36) NOT NULL,
     card_index INT NOT NULL DEFAULT 0,
