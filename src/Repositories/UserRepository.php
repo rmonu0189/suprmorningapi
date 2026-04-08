@@ -125,6 +125,146 @@ final class UserRepository
     }
 
     /**
+     * Escape `%` and `_` for SQL LIKE patterns.
+     */
+    private static function sqlLikeContains(string $term): string
+    {
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term);
+
+        return '%' . $escaped . '%';
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}
+     */
+    private static function formatUserRow(array $row): array
+    {
+        return [
+            'id' => (string) $row['id'],
+            'phone' => (string) $row['phone'],
+            'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
+            'full_name' => $row['full_name'] !== null && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
+            'is_active' => (bool) (int) $row['is_active'],
+            'role' => (string) ($row['role'] ?? self::DEFAULT_ROLE),
+            'created_at' => (string) $row['created_at'],
+        ];
+    }
+
+    public static function countByRoleExcluding(string $excludeRole = self::DEFAULT_ROLE): int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*) FROM users WHERE role <> :exclude'
+        );
+        $stmt->execute(['exclude' => $excludeRole]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Admin: list users excluding a role (defaults to excluding regular "user"), paginated.
+     *
+     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
+     */
+    public static function listByRoleExcludingPaged(string $excludeRole, int $offset, int $limit): array
+    {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+        $stmt = Database::connection()->prepare(
+            'SELECT id, phone, email, full_name, is_active, role, created_at
+             FROM users
+             WHERE role <> :exclude
+             ORDER BY created_at DESC
+             LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset
+        );
+        $stmt->execute(['exclude' => $excludeRole]);
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = self::formatUserRow($row);
+            }
+        }
+
+        return $out;
+    }
+
+    public static function countSearchAll(string $q): int
+    {
+        $q = trim($q);
+        if ($q === '') {
+            return 0;
+        }
+        $like = self::sqlLikeContains($q);
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*) FROM users
+             WHERE phone LIKE :like
+                OR (email IS NOT NULL AND email LIKE :like2)
+                OR (full_name IS NOT NULL AND full_name LIKE :like3)
+                OR id LIKE :like4'
+        );
+        $stmt->execute([
+            'like' => $like,
+            'like2' => $like,
+            'like3' => $like,
+            'like4' => $like,
+        ]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Search all users (any role) by phone, email, name, or id substring.
+     *
+     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
+     */
+    public static function searchAllPaged(string $q, int $offset, int $limit): array
+    {
+        $q = trim($q);
+        if ($q === '') {
+            return [];
+        }
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+        $like = self::sqlLikeContains($q);
+        $stmt = Database::connection()->prepare(
+            'SELECT id, phone, email, full_name, is_active, role, created_at
+             FROM users
+             WHERE phone LIKE :like
+                OR (email IS NOT NULL AND email LIKE :like2)
+                OR (full_name IS NOT NULL AND full_name LIKE :like3)
+                OR id LIKE :like4
+             ORDER BY created_at DESC
+             LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset
+        );
+        $stmt->execute([
+            'like' => $like,
+            'like2' => $like,
+            'like3' => $like,
+            'like4' => $like,
+        ]);
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = self::formatUserRow($row);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Admin: search users by phone (partial match) and optionally exclude a role.
      *
      * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
@@ -155,22 +295,17 @@ final class UserRepository
         }
 
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (!is_array($rows)) return [];
+        if (!is_array($rows)) {
+            return [];
+        }
 
         $out = [];
         foreach ($rows as $row) {
             if (is_array($row)) {
-                $out[] = [
-                    'id' => (string) $row['id'],
-                    'phone' => (string) $row['phone'],
-                    'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
-                    'full_name' => $row['full_name'] !== null && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
-                    'is_active' => (bool) (int) $row['is_active'],
-                    'role' => (string) ($row['role'] ?? self::DEFAULT_ROLE),
-                    'created_at' => (string) $row['created_at'],
-                ];
+                $out[] = self::formatUserRow($row);
             }
         }
+
         return $out;
     }
 
@@ -181,34 +316,7 @@ final class UserRepository
      */
     public static function listByRoleExcluding(string $excludeRole = self::DEFAULT_ROLE, int $limit = 200): array
     {
-        $limit = max(1, min(500, $limit));
-        $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, role, created_at
-             FROM users
-             WHERE role <> :exclude
-             ORDER BY created_at DESC
-             LIMIT ' . (int) $limit
-        );
-        $stmt->execute(['exclude' => $excludeRole]);
-
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (!is_array($rows)) return [];
-
-        $out = [];
-        foreach ($rows as $row) {
-            if (is_array($row)) {
-                $out[] = [
-                    'id' => (string) $row['id'],
-                    'phone' => (string) $row['phone'],
-                    'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
-                    'full_name' => $row['full_name'] !== null && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
-                    'is_active' => (bool) (int) $row['is_active'],
-                    'role' => (string) ($row['role'] ?? self::DEFAULT_ROLE),
-                    'created_at' => (string) $row['created_at'],
-                ];
-            }
-        }
-        return $out;
+        return self::listByRoleExcludingPaged($excludeRole, 0, max(1, min(500, $limit)));
     }
 
     public static function updateRole(string $id, string $role): void

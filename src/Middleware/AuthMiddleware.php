@@ -49,8 +49,11 @@ final class AuthMiddleware
         return $claims;
     }
 
+    /** Roles allowed to call admin API routes (JWT `role` claim). */
+    private const ADMIN_PANEL_ROLES = ['admin', 'staff'];
+
     /**
-     * Valid access JWT, active user, and role claim exactly "admin".
+     * Valid access JWT, active user, and role allowed for the admin console (`admin` or `staff`).
      * Sends 401 / 403 and returns null on failure.
      *
      * @return array<string, mixed>|null
@@ -62,7 +65,13 @@ final class AuthMiddleware
             return null;
         }
 
-        return self::requireRole($claims, 'admin') ? $claims : null;
+        $role = (string) ($claims['role'] ?? '');
+        if (!in_array($role, self::ADMIN_PANEL_ROLES, true)) {
+            Response::json(['error' => 'Forbidden'], 403);
+            return null;
+        }
+
+        return $claims;
     }
 
     public static function requireRole(array $claims, string $role): bool

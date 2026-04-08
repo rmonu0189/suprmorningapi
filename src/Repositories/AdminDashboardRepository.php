@@ -43,10 +43,14 @@ final class AdminDashboardRepository
                   o.id,
                   o.order_status,
                   o.payment_status,
+                  o.delivery_date,
                   o.grand_total,
                   o.currency,
                   o.created_at,
                   o.user_id,
+                  o.recipient_name,
+                  o.recipient_phone,
+                  o.gateway_order_id,
                   u.phone AS customer_phone,
                   u.email AS customer_email,
                   u.full_name AS customer_full_name
@@ -68,14 +72,23 @@ final class AdminDashboardRepository
             if (!is_array($row)) {
                 continue;
             }
+            $dd = $row['delivery_date'] ?? null;
+            $deliveryDateStr = $dd !== null && $dd !== '' ? (string) $dd : '';
+            $go = $row['gateway_order_id'] ?? null;
+
             $out[] = [
                 'id' => (string) ($row['id'] ?? ''),
+                'user_id' => (string) ($row['user_id'] ?? ''),
                 'order_status' => (string) ($row['order_status'] ?? ''),
                 'payment_status' => (string) ($row['payment_status'] ?? ''),
+                'delivery_date' => $deliveryDateStr,
                 'grand_total' => (float) ($row['grand_total'] ?? 0),
                 'currency' => (string) ($row['currency'] ?? ''),
                 'created_at' => (string) ($row['created_at'] ?? ''),
-                'user_id' => (string) ($row['user_id'] ?? ''),
+                'recipient_name' => (string) ($row['recipient_name'] ?? ''),
+                'recipient_phone' => (string) ($row['recipient_phone'] ?? ''),
+                'gateway_order_id' => $go !== null && $go !== '' ? (string) $go : null,
+                'order_items' => [],
                 'customer' => [
                     'phone' => isset($row['customer_phone']) && $row['customer_phone'] !== ''
                         ? (string) $row['customer_phone'] : null,

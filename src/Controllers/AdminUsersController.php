@@ -16,27 +16,46 @@ use PDOException;
 
 final class AdminUsersController
 {
-    /** GET /v1/admin/users?phone=...&exclude_role=user&limit=50 */
+    /**
+     * GET /v1/admin/users?page=0&limit=20&exclude_role=user
+     * Search (all roles, paginated): GET /v1/admin/users?page=0&limit=20&q=...
+     * Legacy: phone=… behaves like q=…
+     */
     public function index(Request $request): void
     {
         if (AuthMiddleware::requireAdmin($request) === null) {
             return;
         }
 
-        $phone = trim((string) ($request->query('phone') ?? ''));
-        $excludeRole = trim((string) ($request->query('exclude_role') ?? UserRepository::DEFAULT_ROLE));
-        $limitRaw = $request->query('limit');
-        $limit = is_string($limitRaw) ? (int) $limitRaw : 50;
+        $page = max(0, (int) ($request->query('page') ?? '0'));
+        $limit = min(100, max(1, (int) ($request->query('limit') ?? '20')));
+        $offset = $page * $limit;
 
-        if ($phone !== '') {
-            Response::json([
-                'users' => UserRepository::searchByPhone($phone, $excludeRole !== '' ? $excludeRole : null, $limit),
-            ]);
-            return;
+        $q = trim((string) ($request->query('q') ?? ''));
+        $phoneLegacy = trim((string) ($request->query('phone') ?? ''));
+        if ($q === '' && $phoneLegacy !== '') {
+            $q = $phoneLegacy;
+        }
+
+        $excludeRaw = $request->query('exclude_role');
+        $excludeRole = is_string($excludeRaw) ? trim($excludeRaw) : UserRepository::DEFAULT_ROLE;
+        if ($excludeRole === '') {
+            $excludeRole = UserRepository::DEFAULT_ROLE;
+        }
+
+        if ($q !== '') {
+            $total = UserRepository::countSearchAll($q);
+            $users = UserRepository::searchAllPaged($q, $offset, $limit);
+        } else {
+            $total = UserRepository::countByRoleExcluding($excludeRole);
+            $users = UserRepository::listByRoleExcludingPaged($excludeRole, $offset, $limit);
         }
 
         Response::json([
-            'users' => UserRepository::listByRoleExcluding($excludeRole !== '' ? $excludeRole : UserRepository::DEFAULT_ROLE, $limit),
+            'users' => $users,
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
         ]);
     }
 
