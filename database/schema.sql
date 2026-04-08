@@ -297,6 +297,7 @@ CREATE TABLE IF NOT EXISTS loves (
 
 CREATE TABLE IF NOT EXISTS orders (
     id CHAR(36) NOT NULL,
+    order_code VARCHAR(16) NULL,
     user_id CHAR(36) NOT NULL,
     cart_id CHAR(36) NULL,
     address_id CHAR(36) NULL,
@@ -326,6 +327,7 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    UNIQUE KEY uq_orders_order_code (order_code),
     KEY idx_orders_user_created (user_id, created_at),
     KEY idx_orders_gateway (gateway_order_id),
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
@@ -350,6 +352,22 @@ CREATE TABLE IF NOT EXISTS order_items (
     CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS delivery_item_checks (
+    id CHAR(36) NOT NULL,
+    order_id CHAR(36) NOT NULL,
+    order_item_id CHAR(36) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending', -- pending|picked|short|missing|not_available
+    picked_quantity INT NOT NULL DEFAULT 0,
+    note TEXT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_delivery_item_checks_order_item (order_item_id),
+    KEY idx_delivery_item_checks_order (order_id),
+    CONSTRAINT fk_delivery_item_checks_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
+    CONSTRAINT fk_delivery_item_checks_order_item FOREIGN KEY (order_item_id) REFERENCES order_items (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS payments (
     id CHAR(36) NOT NULL,
     order_id CHAR(36) NOT NULL,
@@ -365,6 +383,19 @@ CREATE TABLE IF NOT EXISTS payments (
     KEY idx_payments_gateway_order (gateway_order_id),
     CONSTRAINT fk_payments_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
     CONSTRAINT fk_payments_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payment_events (
+    id CHAR(36) NOT NULL,
+    gateway VARCHAR(32) NOT NULL DEFAULT 'razorpay',
+    event VARCHAR(128) NOT NULL,
+    gateway_order_id VARCHAR(255) NULL,
+    payload LONGTEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_payment_events_gateway_order (gateway_order_id),
+    KEY idx_payment_events_event (event),
+    KEY idx_payment_events_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO cart_charges (id, charge_index, title, amount, min_order_value, info)

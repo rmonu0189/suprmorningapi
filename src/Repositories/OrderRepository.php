@@ -5,10 +5,41 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use App\Core\Database;
+use PDOException;
 use PDO;
 
 final class OrderRepository
 {
+    private static function generateOrderCode(): string
+    {
+        // Format: ABCD-123456 (vehicle-number-like, easy to read/call out).
+        $letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // avoid I/O confusion
+        $out = '';
+        for ($i = 0; $i < 4; $i++) {
+            $out .= $letters[random_int(0, strlen($letters) - 1)];
+        }
+        $num = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        return $out . '-' . $num;
+    }
+
+    private static function generateUniqueOrderCode(): string
+    {
+        // Use a few retries; uniqueness is enforced by DB constraint.
+        for ($i = 0; $i < 8; $i++) {
+            $code = self::generateOrderCode();
+            $stmt = Database::connection()->prepare('SELECT id FROM orders WHERE order_code = :c LIMIT 1');
+            $stmt->execute(['c' => $code]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($row)) {
+                return $code;
+            }
+        }
+
+        // Fallback: still return something; DB unique constraint will protect correctness.
+        return self::generateOrderCode();
+    }
+
     public static function insertOrder(
         string $id,
         string $userId,
@@ -39,15 +70,64 @@ final class OrderRepository
     ): void {
         $metaJson = $chargesMetadata !== null ? json_encode($chargesMetadata, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) : null;
 
-        $stmt = Database::connection()->prepare(
-            'INSERT INTO orders (id, user_id, cart_id, address_id, order_status, payment_status, delivery_date, delivery_slot,
+        $pdo = Database::connection();
+        $orderCode = self::generateUniqueOrderCode();
+
+        $sql = 'INSERT INTO orders (id, order_code, user_id, cart_id, address_id, order_status, payment_status, delivery_date, delivery_slot,
                 delivery_type, total_mrp, tax, delivery_fee, grand_total, currency, recipient_name, recipient_phone, full_address,
                 city, state, country, postal_code, total_price, total_charges, gateway_order_id, gateway_name, charges_metadata)
-             VALUES (:id, :uid, :cid, :aid, :os, :ps, :dd, :ds, :dt, :tm, :tx, :df, :gt, :cur, :rn, :rp, :fa, :city, :st, :ctry, :pc,
-                :tp, :tc, :go, :gn, :cm)'
-        );
+             VALUES (:id, :code, :uid, :cid, :aid, :os, :ps, :dd, :ds, :dt, :tm, :tx, :df, :gt, :cur, :rn, :rp, :fa, :city, :st, :ctry, :pc,
+                :tp, :tc, :go, :gn, :cm)';
+
+        for ($attempt = 0; $attempt < 8; $attempt++) {
+            try {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([
+                    'id' => $id,
+                    'code' => $orderCode,
+                    'uid' => $userId,
+                    'cid' => $cartId,
+                    'aid' => $addressId,
+                    'os' => $orderStatus,
+                    'ps' => $paymentStatus,
+                    'dd' => $deliveryDate,
+                    'ds' => $deliverySlot,
+                    'dt' => $deliveryType,
+                    'tm' => $totalMrp,
+                    'tx' => $tax,
+                    'df' => $deliveryFee,
+                    'gt' => $grandTotal,
+                    'cur' => $currency,
+                    'rn' => $recipientName,
+                    'rp' => $recipientPhone,
+                    'fa' => $fullAddress,
+                    'city' => $city,
+                    'st' => $state,
+                    'ctry' => $country,
+                    'pc' => $postalCode,
+                    'tp' => $totalPrice,
+                    'tc' => $totalCharges,
+                    'go' => $gatewayOrderId,
+                    'gn' => $gatewayName,
+                    'cm' => $metaJson,
+                ]);
+
+                return;
+            } catch (PDOException $e) {
+                // Duplicate order_code: retry with a new one.
+                if ($e->getCode() === '23000') {
+                    $orderCode = self::generateOrderCode();
+                    continue;
+                }
+                throw $e;
+            }
+        }
+
+        // Last attempt (let exception bubble if it still fails).
+        $stmt = $pdo->prepare($sql);
         $stmt->execute([
             'id' => $id,
+            'code' => self::generateOrderCode(),
             'uid' => $userId,
             'cid' => $cartId,
             'aid' => $addressId,
@@ -621,6 +701,7 @@ final class OrderRepository
 
         return [
             'id' => (string) $r['id'],
+            'order_code' => isset($r['order_code']) && $r['order_code'] !== '' ? (string) $r['order_code'] : null,
             'order_status' => (string) $r['order_status'],
             'payment_status' => (string) $r['payment_status'],
             'delivery_date' => $deliveryDateStr,
