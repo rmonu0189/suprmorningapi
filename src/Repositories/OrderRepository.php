@@ -161,7 +161,10 @@ final class OrderRepository
     public static function findByIdForAdmin(string $orderId): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT * FROM orders WHERE id = :id LIMIT 1'
+            'SELECT o.*, u.phone AS customer_phone, u.email AS customer_email, u.full_name AS customer_full_name
+             FROM orders o
+             LEFT JOIN users u ON u.id = o.user_id
+             WHERE o.id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $orderId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -169,7 +172,19 @@ final class OrderRepository
             return null;
         }
 
-        return self::formatOrderWithItems($row);
+        $orderOnly = self::stripJoinedOrderRow($row);
+        $base = self::formatOrderWithItems($orderOnly);
+        $base['customer'] = [
+            'phone' => isset($row['customer_phone']) && $row['customer_phone'] !== ''
+                ? (string) $row['customer_phone'] : null,
+            'email' => isset($row['customer_email']) && $row['customer_email'] !== ''
+                ? (string) $row['customer_email'] : null,
+            'full_name' => isset($row['customer_full_name']) && $row['customer_full_name'] !== ''
+                ? (string) $row['customer_full_name'] : null,
+        ];
+        $base['user_id'] = (string) ($row['user_id'] ?? '');
+
+        return $base;
     }
 
     /**
@@ -179,7 +194,9 @@ final class OrderRepository
         int $offset,
         int $limit,
         ?string $paymentStatus,
-        ?string $orderStatus
+        ?string $orderStatus,
+        ?string $dateYmd = null,
+        bool $withItems = false
     ): array {
         $where = ['1=1'];
         $params = [];
@@ -190,6 +207,11 @@ final class OrderRepository
         if ($orderStatus !== null && $orderStatus !== '') {
             $where[] = 'o.order_status = :os';
             $params['os'] = $orderStatus;
+        }
+        if ($dateYmd !== null && $dateYmd !== '') {
+            $where[] = 'o.created_at >= :dfrom AND o.created_at < :dto';
+            $params['dfrom'] = $dateYmd . ' 00:00:00';
+            $params['dto'] = date('Y-m-d', strtotime($dateYmd . ' +1 day')) . ' 00:00:00';
         }
         $w = implode(' AND ', $where);
         $sql = "SELECT o.*, u.phone AS customer_phone, u.email AS customer_email, u.full_name AS customer_full_name
@@ -216,7 +238,7 @@ final class OrderRepository
                 continue;
             }
             $orderOnly = self::stripJoinedOrderRow($row);
-            $base = self::formatOrderWithItems($orderOnly);
+            $base = $withItems ? self::formatOrderWithItems($orderOnly) : self::formatOrderHeader($orderOnly, []);
             $base['customer'] = [
                 'phone' => isset($row['customer_phone']) && $row['customer_phone'] !== ''
                     ? (string) $row['customer_phone'] : null,
@@ -232,7 +254,7 @@ final class OrderRepository
         return $out;
     }
 
-    public static function countAllForAdmin(?string $paymentStatus, ?string $orderStatus): int
+    public static function countAllForAdmin(?string $paymentStatus, ?string $orderStatus, ?string $dateYmd = null): int
     {
         $where = ['1=1'];
         $params = [];
@@ -243,6 +265,11 @@ final class OrderRepository
         if ($orderStatus !== null && $orderStatus !== '') {
             $where[] = 'order_status = :os';
             $params['os'] = $orderStatus;
+        }
+        if ($dateYmd !== null && $dateYmd !== '') {
+            $where[] = 'created_at >= :dfrom AND created_at < :dto';
+            $params['dfrom'] = $dateYmd . ' 00:00:00';
+            $params['dto'] = date('Y-m-d', strtotime($dateYmd . ' +1 day')) . ' 00:00:00';
         }
         $w = implode(' AND ', $where);
         $stmt = Database::connection()->prepare("SELECT COUNT(*) AS c FROM orders WHERE {$w}");

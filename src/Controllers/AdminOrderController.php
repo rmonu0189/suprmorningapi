@@ -36,8 +36,21 @@ final class AdminOrderController
         $ps = $paymentStatus === '' ? null : $paymentStatus;
         $os = $orderStatus === '' ? null : $orderStatus;
 
-        $total = OrderRepository::countAllForAdmin($ps, $os);
-        $orders = OrderRepository::findAllForAdmin($offset, $limit, $ps, $os);
+        $dateParam = $request->query('date');
+        $dateYmd = null;
+        if ($dateParam !== null && trim($dateParam) !== '') {
+            $trimmed = trim($dateParam);
+            $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $trimmed);
+            if ($dt === false || $dt->format('Y-m-d') !== $trimmed) {
+                Response::json(['error' => 'Invalid date', 'errors' => ['date' => 'Use YYYY-MM-DD.']], 422);
+
+                return;
+            }
+            $dateYmd = $dt->format('Y-m-d');
+        }
+
+        $total = OrderRepository::countAllForAdmin($ps, $os, $dateYmd);
+        $orders = OrderRepository::findAllForAdmin($offset, $limit, $ps, $os, $dateYmd, false);
 
         Response::json([
             'orders' => $orders,
