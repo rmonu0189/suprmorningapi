@@ -39,6 +39,76 @@ final class VariantRepository
         return $out;
     }
 
+    /**
+     * Lightweight search for admin UIs (inventory, pickers).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function searchWithContext(string $query, int $limit = 50): array
+    {
+        $q = trim($query);
+        if ($q === '') {
+            return [];
+        }
+
+        $limit = max(1, min(200, $limit));
+
+        // Escape LIKE wildcards. MySQL/MariaDB treat backslash as the default LIKE escape.
+        // (Avoid `... ESCAPE '\'` because it breaks on some MariaDB configurations.)
+        $needle = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
+        $like = '%' . $needle . '%';
+
+        // NOTE: some PDO drivers don't allow binding LIMIT reliably; embed the sanitized int.
+        $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata, v.status, v.discount_tag,
+                       p.name AS product_name,
+                       b.name AS brand_name
+                FROM variants v
+                LEFT JOIN products p ON p.id = v.product_id
+                LEFT JOIN brands b ON b.id = p.brand_id
+                WHERE (
+                       v.id = ?
+                       OR v.sku = ?
+                       OR v.sku LIKE ?
+                       OR v.name LIKE ?
+                       OR p.name LIKE ?
+                       OR b.name LIKE ?
+                )
+                ORDER BY
+                    (CASE WHEN v.sku = ? THEN 0 WHEN v.id = ? THEN 0 ELSE 1 END),
+                    v.name ASC, v.sku ASC, v.id ASC
+                LIMIT ' . $limit;
+
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute([
+            $q,    // v.id = ?
+            $q,    // v.sku = ?
+            $like, // v.sku LIKE ?
+            $like, // v.name LIKE ?
+            $like, // p.name LIKE ?
+            $like, // b.name LIKE ?
+            $q,    // ORDER BY CASE WHEN v.sku = ?
+            $q,    // ORDER BY CASE WHEN v.id = ?
+        ]);
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $norm = self::normalizeRow($row);
+            $norm['product_name'] = isset($row['product_name']) ? (string) $row['product_name'] : null;
+            $norm['brand_name'] = isset($row['brand_name']) ? (string) $row['brand_name'] : null;
+            $out[] = $norm;
+        }
+
+        return $out;
+    }
+
     /** @return array<string, mixed>|null */
     public static function findById(string $id): ?array
     {

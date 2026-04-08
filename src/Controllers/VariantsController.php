@@ -24,6 +24,26 @@ final class VariantsController
             return;
         }
 
+        $q = $request->query('q');
+        if ($q !== null && trim($q) !== '') {
+            $q = trim($q);
+            $limitRaw = $request->query('limit');
+            $limit = 50;
+            if ($limitRaw !== null && trim((string) $limitRaw) !== '' && preg_match('/^\d+$/', trim((string) $limitRaw))) {
+                $limit = (int) trim((string) $limitRaw);
+            }
+            if ($limit < 1) {
+                $limit = 1;
+            }
+            if ($limit > 200) {
+                $limit = 200;
+            }
+
+            Response::json(['variants' => VariantRepository::searchWithContext($q, $limit)]);
+
+            return;
+        }
+
         $id = $request->query('id');
         if ($id !== null && trim($id) !== '') {
             $id = trim($id);
