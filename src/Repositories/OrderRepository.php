@@ -351,6 +351,10 @@ final class OrderRepository
                        COALESCE(oi_agg.total_qty, 0) AS item_qty,
                        COALESCE(dic_agg.reviewed_lines, 0) AS reviewed_lines,
                        COALESCE(dic_agg.issue_lines, 0) AS issue_lines,
+                       COALESCE(dic_agg.picked_lines, 0) AS picked_lines,
+                       COALESCE(dic_agg.short_lines, 0) AS short_lines,
+                       COALESCE(dic_agg.missing_lines, 0) AS missing_lines,
+                       COALESCE(dic_agg.not_available_lines, 0) AS not_available_lines,
                        u.phone AS customer_phone, u.email AS customer_email, u.full_name AS customer_full_name
                 FROM orders o
                 LEFT JOIN users u ON u.id = o.user_id
@@ -363,7 +367,11 @@ final class OrderRepository
                     SELECT
                         oi.order_id AS order_id,
                         SUM(CASE WHEN dic.status IS NOT NULL AND dic.status != '' AND dic.status != 'pending' THEN 1 ELSE 0 END) AS reviewed_lines,
-                        SUM(CASE WHEN dic.status IN ('short', 'missing', 'not_available') THEN 1 ELSE 0 END) AS issue_lines
+                        SUM(CASE WHEN dic.status IN ('short', 'missing', 'not_available') THEN 1 ELSE 0 END) AS issue_lines,
+                        SUM(CASE WHEN dic.status = 'picked' THEN 1 ELSE 0 END) AS picked_lines,
+                        SUM(CASE WHEN dic.status = 'short' THEN 1 ELSE 0 END) AS short_lines,
+                        SUM(CASE WHEN dic.status = 'missing' THEN 1 ELSE 0 END) AS missing_lines,
+                        SUM(CASE WHEN dic.status = 'not_available' THEN 1 ELSE 0 END) AS not_available_lines
                     FROM order_items oi
                     LEFT JOIN delivery_item_checks dic ON dic.order_item_id = oi.id
                     GROUP BY oi.order_id
@@ -395,6 +403,10 @@ final class OrderRepository
             $base['item_qty'] = (int) ($row['item_qty'] ?? 0);
             $base['reviewed_lines'] = (int) ($row['reviewed_lines'] ?? 0);
             $base['issue_lines'] = (int) ($row['issue_lines'] ?? 0);
+            $base['picked_lines'] = (int) ($row['picked_lines'] ?? 0);
+            $base['short_lines'] = (int) ($row['short_lines'] ?? 0);
+            $base['missing_lines'] = (int) ($row['missing_lines'] ?? 0);
+            $base['not_available_lines'] = (int) ($row['not_available_lines'] ?? 0);
             $out[] = $base;
         }
 
