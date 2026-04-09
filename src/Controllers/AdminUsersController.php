@@ -10,8 +10,10 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Uuid;
 use App\Core\Validator;
+use App\Core\Phone;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\UserRepository;
+use App\Repositories\WarehouseRepository;
 use PDOException;
 
 final class AdminUsersController
@@ -59,12 +61,49 @@ final class AdminUsersController
         ]);
     }
 
-    /** PATCH /v1/admin/users/role { id, role } */
-    public function updateRole(Request $request): void
+    /** GET /v1/admin/users/by-phone?phone=+919876543210 */
+    public function byPhone(Request $request): void
     {
         if (AuthMiddleware::requireAdmin($request) === null) {
             return;
         }
+
+        $phone = trim((string) ($request->query('phone') ?? ''));
+        if ($phone === '') {
+            Response::json(['error' => 'Invalid phone', 'errors' => ['phone' => 'Phone is required.']], 422);
+            return;
+        }
+
+        // Basic sanity: digits length check (accept +, spaces, etc).
+        $normalizedDigits = Phone::normalize($phone);
+        if ($normalizedDigits === null) {
+            Response::json(['error' => 'Invalid phone', 'errors' => ['phone' => 'Enter a valid phone number.']], 422);
+            return;
+        }
+
+        $user = UserRepository::findByPhoneExact($phone);
+        if ($user === null) {
+            Response::json(['error' => 'Not Found'], 404);
+            return;
+        }
+
+        Response::json(['user' => $user]);
+    }
+
+    /** PATCH /v1/admin/users/role { id, role } */
+    public function updateRole(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
+            return;
+        }
+
+        $actorRole = trim((string) ($claims['role'] ?? ''));
+        if ($actorRole !== 'admin' && $actorRole !== 'manager') {
+            Response::json(['error' => 'Forbidden'], 403);
+            return;
+        }
+        $actorUserId = trim((string) ($claims['sub'] ?? ''));
 
         Validator::requireJsonContentType($request);
         $body = $request->json();
@@ -82,13 +121,66 @@ final class AdminUsersController
             throw new ValidationException('Invalid role', ['role' => 'At most 50 characters.']);
         }
 
-        if (UserRepository::findById($id) === null) {
+        $target = UserRepository::findById($id);
+        if ($target === null) {
             Response::json(['error' => 'Not Found'], 404);
             return;
         }
 
+        $targetRole = trim((string) ($target['role'] ?? UserRepository::DEFAULT_ROLE));
+
+        // Manager constraints:
+        // - Can only assign staff/delivery
+        // - Cannot modify admin/manager users
+        if ($actorRole === 'manager') {
+            if ($targetRole === 'admin' || $targetRole === 'manager') {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            if ($role !== 'staff' && $role !== 'delivery') {
+                throw new ValidationException('Invalid role', ['role' => 'Managers can assign only staff or delivery roles.']);
+            }
+        }
+
+        // Warehouse rules:
+        // - staff/manager must have warehouse_id (admin provides; manager auto-assigns their own)
+        // - delivery/user/admin => warehouse_id must be null
+        $warehouseId = null;
+        if ($role === 'staff' || $role === 'manager') {
+            if ($actorRole === 'manager') {
+                $warehouseId = $actorUserId !== '' ? UserRepository::findWarehouseId($actorUserId) : null;
+                if ($warehouseId === null) {
+                    throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Manager must be assigned to a warehouse first.']);
+                }
+            } else {
+                if (!array_key_exists('warehouse_id', $body)) {
+                    throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Required for staff/manager.']);
+                }
+                $raw = $body['warehouse_id'];
+                if ($raw === null || $raw === '') {
+                    throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Required for staff/manager.']);
+                }
+                if (is_int($raw)) {
+                    $warehouseId = $raw;
+                } elseif (is_string($raw) && preg_match('/^\d+$/', $raw)) {
+                    $warehouseId = (int) $raw;
+                } else {
+                    throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Must be an integer.']);
+                }
+            }
+            $wh = WarehouseRepository::findById($warehouseId);
+            if ($wh === null) {
+                throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Warehouse not found.']);
+            }
+            if (!((bool) ($wh['status'] ?? false))) {
+                throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Warehouse is disabled.']);
+            }
+        } else {
+            $warehouseId = null;
+        }
+
         try {
-            UserRepository::updateRole($id, $role);
+            UserRepository::updateRoleAndWarehouse($id, $role, $warehouseId);
         } catch (PDOException $e) {
             throw new HttpException('Could not update role', 500);
         }

@@ -11,12 +11,14 @@ use App\Core\Uuid;
 use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\OrderRepository;
+use App\Repositories\UserRepository;
 
 final class AdminDeliveryController
 {
     public function index(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -41,7 +43,14 @@ final class AdminDeliveryController
 
         $includeDelivered = trim((string) ($request->query('include_delivered') ?? '')) === '1';
 
-        $orders = OrderRepository::findDeliverableOrdersForAdmin($deliveryDateYmd, $orderStatuses, $includeDelivered);
+        $warehouseId = null;
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if (($role === 'staff' || $role === 'manager' || $role === 'delivery') && $sub !== '') {
+            $warehouseId = UserRepository::findWarehouseId($sub);
+        }
+
+        $orders = OrderRepository::findDeliverableOrdersForAdmin($deliveryDateYmd, $orderStatuses, $includeDelivered, $warehouseId);
         $items = OrderRepository::findOrderItemsForOrdersWithVariantId(array_map(static fn ($o) => (string) ($o['id'] ?? ''), $orders));
 
         // Aggregate items by variant (prefer variant_id, fallback to sku key).
@@ -97,7 +106,8 @@ final class AdminDeliveryController
 
     public function show(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -111,6 +121,17 @@ final class AdminDeliveryController
         if ($order === null) {
             Response::json(['error' => 'Not Found'], 404);
             return;
+        }
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if (($role === 'staff' || $role === 'manager' || $role === 'delivery') && $sub !== '') {
+            $wid = UserRepository::findWarehouseId($sub);
+            $orderWid = OrderRepository::findWarehouseIdForOrder($id);
+            if ($wid === null || $orderWid === null || $wid !== $orderWid) {
+                Response::json(['error' => 'Not Found'], 404);
+                return;
+            }
         }
 
         $items = OrderRepository::findOrderItemsForOrdersWithVariantId([$id]);

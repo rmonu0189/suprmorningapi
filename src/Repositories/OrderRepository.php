@@ -58,6 +58,7 @@ final class OrderRepository
         ?string $cartId,
         ?string $addressId,
         ?string $addressLabel,
+        ?int $warehouseId,
         string $orderStatus,
         string $paymentStatus,
         ?string $deliveryDate,
@@ -75,6 +76,8 @@ final class OrderRepository
         string $state,
         string $country,
         string $postalCode,
+        float $latitude,
+        float $longitude,
         float $totalPrice,
         float $totalCharges,
         ?string $gatewayOrderId,
@@ -86,10 +89,10 @@ final class OrderRepository
         $pdo = Database::connection();
         $orderCode = self::nextOrderCode($pdo);
 
-        $sql = 'INSERT INTO orders (id, order_code, user_id, cart_id, address_id, address_label, order_status, payment_status, delivery_date, delivery_slot,
+        $sql = 'INSERT INTO orders (id, order_code, user_id, cart_id, address_id, address_label, warehouse_id, order_status, payment_status, delivery_date, delivery_slot,
                 delivery_type, total_mrp, tax, delivery_fee, grand_total, currency, recipient_name, recipient_phone, full_address,
-                city, state, country, postal_code, total_price, total_charges, gateway_order_id, gateway_name, charges_metadata)
-             VALUES (:id, :code, :uid, :cid, :aid, :al, :os, :ps, :dd, :ds, :dt, :tm, :tx, :df, :gt, :cur, :rn, :rp, :fa, :city, :st, :ctry, :pc,
+                city, state, country, postal_code, latitude, longitude, total_price, total_charges, gateway_order_id, gateway_name, charges_metadata)
+             VALUES (:id, :code, :uid, :cid, :aid, :al, :wid, :os, :ps, :dd, :ds, :dt, :tm, :tx, :df, :gt, :cur, :rn, :rp, :fa, :city, :st, :ctry, :pc, :lat, :lng,
                 :tp, :tc, :go, :gn, :cm)';
 
         for ($attempt = 0; $attempt < 8; $attempt++) {
@@ -102,6 +105,7 @@ final class OrderRepository
                     'cid' => $cartId,
                     'aid' => $addressId,
                     'al' => $addressLabel,
+                    'wid' => $warehouseId,
                     'os' => $orderStatus,
                     'ps' => $paymentStatus,
                     'dd' => $deliveryDate,
@@ -119,6 +123,8 @@ final class OrderRepository
                     'st' => $state,
                     'ctry' => $country,
                     'pc' => $postalCode,
+                    'lat' => $latitude,
+                    'lng' => $longitude,
                     'tp' => $totalPrice,
                     'tc' => $totalCharges,
                     'go' => $gatewayOrderId,
@@ -145,6 +151,8 @@ final class OrderRepository
             'uid' => $userId,
             'cid' => $cartId,
             'aid' => $addressId,
+            'al' => $addressLabel,
+            'wid' => $warehouseId,
             'os' => $orderStatus,
             'ps' => $paymentStatus,
             'dd' => $deliveryDate,
@@ -162,12 +170,33 @@ final class OrderRepository
             'st' => $state,
             'ctry' => $country,
             'pc' => $postalCode,
+            'lat' => $latitude,
+            'lng' => $longitude,
             'tp' => $totalPrice,
             'tc' => $totalCharges,
             'go' => $gatewayOrderId,
             'gn' => $gatewayName,
             'cm' => $metaJson,
         ]);
+    }
+
+    public static function updateWarehouseId(string $orderId, ?int $warehouseId): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE orders SET warehouse_id = :wid WHERE id = :id'
+        );
+        $stmt->execute(['wid' => $warehouseId, 'id' => $orderId]);
+    }
+
+    public static function findWarehouseIdForOrder(string $orderId): ?int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT warehouse_id FROM orders WHERE id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $orderId]);
+        $v = $stmt->fetchColumn();
+        if ($v === false || $v === null || $v === '') return null;
+        return (int) $v;
     }
 
     public static function insertOrderItem(
@@ -290,7 +319,8 @@ final class OrderRepository
         ?string $paymentStatus,
         ?string $orderStatus,
         ?string $dateYmd = null,
-        bool $withItems = false
+        bool $withItems = false,
+        ?int $warehouseId = null
     ): array {
         $where = ['1=1'];
         $params = [];
@@ -306,6 +336,10 @@ final class OrderRepository
             $where[] = 'o.created_at >= :dfrom AND o.created_at < :dto';
             $params['dfrom'] = $dateYmd . ' 00:00:00';
             $params['dto'] = date('Y-m-d', strtotime($dateYmd . ' +1 day')) . ' 00:00:00';
+        }
+        if ($warehouseId !== null) {
+            $where[] = 'o.warehouse_id = :wid';
+            $params['wid'] = (string) $warehouseId;
         }
         $w = implode(' AND ', $where);
         $sql = "SELECT o.*, u.phone AS customer_phone, u.email AS customer_email, u.full_name AS customer_full_name
@@ -348,7 +382,7 @@ final class OrderRepository
         return $out;
     }
 
-    public static function countAllForAdmin(?string $paymentStatus, ?string $orderStatus, ?string $dateYmd = null): int
+    public static function countAllForAdmin(?string $paymentStatus, ?string $orderStatus, ?string $dateYmd = null, ?int $warehouseId = null): int
     {
         $where = ['1=1'];
         $params = [];
@@ -364,6 +398,10 @@ final class OrderRepository
             $where[] = 'created_at >= :dfrom AND created_at < :dto';
             $params['dfrom'] = $dateYmd . ' 00:00:00';
             $params['dto'] = date('Y-m-d', strtotime($dateYmd . ' +1 day')) . ' 00:00:00';
+        }
+        if ($warehouseId !== null) {
+            $where[] = 'warehouse_id = :wid';
+            $params['wid'] = (string) $warehouseId;
         }
         $w = implode(' AND ', $where);
         $stmt = Database::connection()->prepare("SELECT COUNT(*) AS c FROM orders WHERE {$w}");
@@ -496,7 +534,7 @@ final class OrderRepository
      * @param list<string>|null $orderStatuses
      * @return list<array<string, mixed>>
      */
-    public static function findDeliverableOrdersForAdmin(?string $deliveryDateYmd, ?array $orderStatuses, bool $includeDelivered): array
+    public static function findDeliverableOrdersForAdmin(?string $deliveryDateYmd, ?array $orderStatuses, bool $includeDelivered, ?int $warehouseId = null): array
     {
         $where = ['1=1'];
         $params = [];
@@ -526,6 +564,11 @@ final class OrderRepository
             // Default deliverable statuses.
             // Backward compatible: older rows may still use 'picked' for the same meaning as 'packed'.
             $where[] = 'o.order_status IN (\'placed\', \'packed\', \'picked\', \'processing\', \'shipped\')';
+        }
+
+        if ($warehouseId !== null) {
+            $where[] = 'o.warehouse_id = :wid';
+            $params['wid'] = (string) $warehouseId;
         }
 
         $w = implode(' AND ', $where);

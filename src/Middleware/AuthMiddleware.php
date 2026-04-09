@@ -50,7 +50,7 @@ final class AuthMiddleware
     }
 
     /** Roles allowed to call admin API routes (JWT `role` claim). */
-    private const ADMIN_PANEL_ROLES = ['admin', 'staff'];
+    private const ADMIN_PANEL_ROLES = ['admin', 'staff', 'manager', 'delivery'];
 
     /**
      * Valid access JWT, active user, and role allowed for the admin console (`admin` or `staff`).

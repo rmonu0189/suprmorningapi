@@ -71,6 +71,7 @@ require_once __DIR__ . '/../Security/RateLimiter.php';
 require_once __DIR__ . '/../Security/LoginLockout.php';
 require_once __DIR__ . '/../Core/Phone.php';
 require_once __DIR__ . '/../Repositories/UserRepository.php';
+require_once __DIR__ . '/../Repositories/WarehouseRepository.php';
 require_once __DIR__ . '/../Repositories/RefreshTokenRepository.php';
 require_once __DIR__ . '/../Repositories/PhoneOtpChallengeRepository.php';
 require_once __DIR__ . '/../Services/OtpNotifier.php';
@@ -91,7 +92,6 @@ require_once __DIR__ . '/../Repositories/InventoryMovementRepository.php';
 require_once __DIR__ . '/../Repositories/AddressRepository.php';
 require_once __DIR__ . '/../Repositories/LoveRepository.php';
 require_once __DIR__ . '/../Repositories/OrderRepository.php';
-require_once __DIR__ . '/../Repositories/WarehouseRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentEventRepository.php';
 require_once __DIR__ . '/../Repositories/CouponRepository.php';
@@ -374,6 +374,9 @@ final class App
 
         $router->add('GET', self::API_PREFIX . '/admin/users', static function (Request $r) use ($adminUsers): void {
             $adminUsers->index($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/admin/users/by-phone', static function (Request $r) use ($adminUsers): void {
+            $adminUsers->byPhone($r);
         });
         $router->add('PATCH', self::API_PREFIX . '/admin/users/role', static function (Request $r) use ($adminUsers): void {
             $adminUsers->updateRole($r);

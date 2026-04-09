@@ -11,12 +11,14 @@ use App\Core\Uuid;
 use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\OrderRepository;
+use App\Repositories\UserRepository;
 
 final class AdminOrderController
 {
     public function index(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -49,8 +51,16 @@ final class AdminOrderController
             $dateYmd = $dt->format('Y-m-d');
         }
 
+        $warehouseId = null;
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if (($role === 'staff' || $role === 'manager' || $role === 'delivery') && $sub !== '') {
+            $warehouseId = UserRepository::findWarehouseId($sub);
+        }
+
         $total = OrderRepository::countAllForAdmin($ps, $os, $dateYmd);
-        $orders = OrderRepository::findAllForAdmin($offset, $limit, $ps, $os, $dateYmd, false);
+        $total = OrderRepository::countAllForAdmin($ps, $os, $dateYmd, $warehouseId);
+        $orders = OrderRepository::findAllForAdmin($offset, $limit, $ps, $os, $dateYmd, false, $warehouseId);
 
         Response::json([
             'orders' => $orders,
@@ -78,7 +88,8 @@ final class AdminOrderController
 
     public function statusEvents(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -91,6 +102,17 @@ final class AdminOrderController
         if (OrderRepository::findByIdForAdmin($orderId) === null) {
             Response::json(['error' => 'Not Found'], 404);
             return;
+        }
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if (($role === 'staff' || $role === 'manager' || $role === 'delivery') && $sub !== '') {
+            $wid = UserRepository::findWarehouseId($sub);
+            $orderWid = OrderRepository::findWarehouseIdForOrder($orderId);
+            if ($wid === null || $orderWid === null || $wid !== $orderWid) {
+                Response::json(['error' => 'Not Found'], 404);
+                return;
+            }
         }
 
         $events = OrderRepository::findStatusEventsForAdmin($orderId);
@@ -115,6 +137,17 @@ final class AdminOrderController
         if (OrderRepository::findByIdForAdmin($id) === null) {
             Response::json(['error' => 'Not Found'], 404);
             return;
+        }
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if (($role === 'staff' || $role === 'manager' || $role === 'delivery') && $sub !== '') {
+            $wid = UserRepository::findWarehouseId($sub);
+            $orderWid = OrderRepository::findWarehouseIdForOrder($id);
+            if ($wid === null || $orderWid === null || $wid !== $orderWid) {
+                Response::json(['error' => 'Not Found'], 404);
+                return;
+            }
         }
 
         $orderStatus = null;

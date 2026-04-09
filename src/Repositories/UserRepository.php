@@ -29,11 +29,25 @@ final class UserRepository
         return (bool) (int) $v;
     }
 
-    /** @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}|null */
+    /** @return int|null warehouse_id for the user (null when unset or user not found) */
+    public static function findWarehouseId(string $id): ?int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT warehouse_id FROM users WHERE id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $id]);
+        $v = $stmt->fetchColumn();
+        if ($v === false || $v === null || $v === '') {
+            return null;
+        }
+        return (int) $v;
+    }
+
+    /** @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
     public static function findById(string $id): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, role, created_at FROM users WHERE id = :id LIMIT 1'
+            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at FROM users WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -52,6 +66,7 @@ final class UserRepository
             'full_name' => $fn !== null && $fn !== '' ? (string) $fn : null,
             'is_active' => (bool) (int) $row['is_active'],
             'role' => $role !== null && $role !== '' ? (string) $role : self::DEFAULT_ROLE,
+            'warehouse_id' => isset($row['warehouse_id']) && $row['warehouse_id'] !== null ? (int) $row['warehouse_id'] : null,
             'created_at' => (string) $row['created_at'],
         ];
     }
@@ -73,6 +88,21 @@ final class UserRepository
             'id' => (string) $row['id'],
             'is_active' => (bool) (int) $row['is_active'],
         ];
+    }
+
+    /** @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
+    public static function findByPhoneExact(string $phone): ?array
+    {
+        $p = trim($phone);
+        if ($p === '') return null;
+        $stmt = Database::connection()->prepare(
+            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
+             FROM users WHERE phone = :phone LIMIT 1'
+        );
+        $stmt->execute(['phone' => $p]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) return null;
+        return self::formatUserRow($row);
     }
 
     public static function phoneTaken(string $phone): bool
@@ -147,6 +177,7 @@ final class UserRepository
             'full_name' => $row['full_name'] !== null && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
             'is_active' => (bool) (int) $row['is_active'],
             'role' => (string) ($row['role'] ?? self::DEFAULT_ROLE),
+            'warehouse_id' => isset($row['warehouse_id']) && $row['warehouse_id'] !== null ? (int) $row['warehouse_id'] : null,
             'created_at' => (string) $row['created_at'],
         ];
     }
@@ -171,7 +202,7 @@ final class UserRepository
         $limit = max(1, min(100, $limit));
         $offset = max(0, $offset);
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, role, created_at
+            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
              FROM users
              WHERE role <> :exclude
              ORDER BY created_at DESC
@@ -233,7 +264,7 @@ final class UserRepository
         $offset = max(0, $offset);
         $like = self::sqlLikeContains($q);
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, role, created_at
+            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
              FROM users
              WHERE phone LIKE :like
                 OR (email IS NOT NULL AND email LIKE :like2)
@@ -276,7 +307,7 @@ final class UserRepository
 
         if ($excludeRole !== null && $excludeRole !== '') {
             $stmt = Database::connection()->prepare(
-                'SELECT id, phone, email, full_name, is_active, role, created_at
+                'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
                  FROM users
                  WHERE phone LIKE :like AND role <> :exclude
                  ORDER BY created_at DESC
@@ -285,7 +316,7 @@ final class UserRepository
             $stmt->execute(['like' => $like, 'exclude' => $excludeRole]);
         } else {
             $stmt = Database::connection()->prepare(
-                'SELECT id, phone, email, full_name, is_active, role, created_at
+                'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
                  FROM users
                  WHERE phone LIKE :like
                  ORDER BY created_at DESC
@@ -325,5 +356,17 @@ final class UserRepository
             'UPDATE users SET role = :role WHERE id = :id'
         );
         $stmt->execute(['id' => $id, 'role' => $role !== '' ? $role : self::DEFAULT_ROLE]);
+    }
+
+    public static function updateRoleAndWarehouse(string $id, string $role, ?int $warehouseId): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE users SET role = :role, warehouse_id = :wid WHERE id = :id'
+        );
+        $stmt->execute([
+            'id' => $id,
+            'role' => $role !== '' ? $role : self::DEFAULT_ROLE,
+            'wid' => $warehouseId,
+        ]);
     }
 }

@@ -75,6 +75,25 @@ final class WarehouseRepository
         return self::normalizeRow($row);
     }
 
+    /** Find nearest enabled warehouse to a coordinate. */
+    public static function findNearestEnabledId(float $lat, float $lng): ?int
+    {
+        // Simple squared distance in degrees is good enough for nearby selection.
+        $stmt = Database::connection()->prepare(
+            'SELECT id
+             FROM warehouses
+             WHERE status = 1
+             ORDER BY ((latitude - :lat) * (latitude - :lat) + (longitude - :lng) * (longitude - :lng)) ASC, id ASC
+             LIMIT 1'
+        );
+        $stmt->execute(['lat' => $lat, 'lng' => $lng]);
+        $v = $stmt->fetchColumn();
+        if ($v === false || $v === null || $v === '') {
+            return null;
+        }
+        return (int) $v;
+    }
+
     public static function insert(
         string $name,
         string $addressLine1,

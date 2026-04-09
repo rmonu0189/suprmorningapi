@@ -14,11 +14,14 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(255) NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     role VARCHAR(50) NOT NULL DEFAULT 'user',
+    warehouse_id INT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_users_phone (phone),
-    UNIQUE KEY uq_users_email (email)
+    UNIQUE KEY uq_users_email (email),
+    KEY idx_users_warehouse (warehouse_id),
+    CONSTRAINT fk_users_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS phone_otp_challenges (
@@ -333,6 +336,7 @@ CREATE TABLE IF NOT EXISTS orders (
     cart_id CHAR(36) NULL,
     address_id CHAR(36) NULL,
     address_label VARCHAR(64) NULL,
+    warehouse_id INT NULL,
     order_status VARCHAR(32) NOT NULL DEFAULT 'created',
     payment_status VARCHAR(32) NOT NULL DEFAULT 'pending',
     delivery_date DATE NULL,
@@ -350,6 +354,8 @@ CREATE TABLE IF NOT EXISTS orders (
     state VARCHAR(128) NOT NULL,
     country VARCHAR(128) NOT NULL,
     postal_code VARCHAR(32) NOT NULL,
+    latitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
+    longitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
     total_price DECIMAL(12, 2) NOT NULL,
     total_charges DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
     gateway_order_id VARCHAR(255) NULL,
@@ -362,9 +368,11 @@ CREATE TABLE IF NOT EXISTS orders (
     UNIQUE KEY uq_orders_order_code (order_code),
     KEY idx_orders_user_created (user_id, created_at),
     KEY idx_orders_gateway (gateway_order_id),
+    KEY idx_orders_warehouse (warehouse_id),
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_orders_cart FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE SET NULL,
-    CONSTRAINT fk_orders_address FOREIGN KEY (address_id) REFERENCES addresses (id) ON DELETE SET NULL
+    CONSTRAINT fk_orders_address FOREIGN KEY (address_id) REFERENCES addresses (id) ON DELETE SET NULL,
+    CONSTRAINT fk_orders_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS order_status_events (

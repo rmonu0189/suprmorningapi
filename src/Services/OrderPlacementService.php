@@ -14,6 +14,7 @@ use App\Repositories\CartRepository;
 use App\Repositories\CatalogRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
+use App\Repositories\WarehouseRepository;
 use DateTimeImmutable;
 use PDOException;
 
@@ -68,6 +69,8 @@ final class OrderPlacementService
         $orderId = Uuid::v4();
         $deliveryDate = (new DateTimeImmutable('tomorrow'))->format('Y-m-d');
         $fullAddress = self::formatFullAddressLikeEdge($address);
+        $lat = isset($address['latitude']) ? (float) $address['latitude'] : 0.0;
+        $lng = isset($address['longitude']) ? (float) $address['longitude'] : 0.0;
 
         $variantIds = array_map(static fn (array $l): string => (string) $l['variant_id'], $lines);
         $snapshots = CatalogRepository::snapshotVariantsForOrder($variantIds);
@@ -87,6 +90,7 @@ final class OrderPlacementService
                 $cartId,
                 $addressId,
                 isset($address['label']) ? (string) $address['label'] : null,
+                null,
                 'placed',
                 'pending',
                 $deliveryDate,
@@ -104,12 +108,22 @@ final class OrderPlacementService
                 (string) $address['state'],
                 (string) $address['country'],
                 (string) $address['postal_code'],
+                $lat,
+                $lng,
                 $totalPrice,
                 $totalCharges,
                 null,
                 'razorpay',
                 $otherChargesValue !== [] ? $otherChargesValue : null
             );
+
+            // Assign the nearest enabled warehouse.
+            if ($lat != 0.0 || $lng != 0.0) {
+                $nearestWid = WarehouseRepository::findNearestEnabledId($lat, $lng);
+                if ($nearestWid !== null) {
+                    OrderRepository::updateWarehouseId($orderId, $nearestWid);
+                }
+            }
 
             foreach ($lines as $line) {
                 $vid = (string) $line['variant_id'];
