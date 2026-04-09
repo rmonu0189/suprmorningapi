@@ -91,6 +91,7 @@ final class AdminDeliveryController
         Response::json([
             'orders' => $orders,
             'items_by_variant' => $itemsByVariant,
+            'order_items' => $items,
         ]);
     }
 

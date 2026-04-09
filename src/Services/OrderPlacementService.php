@@ -19,6 +19,9 @@ use PDOException;
 
 final class OrderPlacementService
 {
+    /** Default morning window until slot selection exists at checkout. */
+    private const DEFAULT_DELIVERY_SLOT = '5 to 7 AM';
+
     /**
      * @return array{order: array{id: string}, razorpayResponse: array<string, mixed>, razonpayResponse: array<string, mixed>}
      */
@@ -83,10 +86,11 @@ final class OrderPlacementService
                 $userId,
                 $cartId,
                 $addressId,
+                isset($address['label']) ? (string) $address['label'] : null,
                 'placed',
                 'pending',
                 $deliveryDate,
-                null,
+                self::DEFAULT_DELIVERY_SLOT,
                 'standard',
                 $totalMrp,
                 $tax,
@@ -228,7 +232,6 @@ final class OrderPlacementService
     private static function formatFullAddressLikeEdge(array $address): string
     {
         $parts = [
-            $address['recipient_name'] ?? null,
             $address['address_line_1'] ?? null,
             $address['area'] ?? null,
             $address['address_line_2'] ?? null,

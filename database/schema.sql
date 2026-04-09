@@ -310,6 +310,7 @@ CREATE TABLE IF NOT EXISTS orders (
     user_id CHAR(36) NOT NULL,
     cart_id CHAR(36) NULL,
     address_id CHAR(36) NULL,
+    address_label VARCHAR(64) NULL,
     order_status VARCHAR(32) NOT NULL DEFAULT 'created',
     payment_status VARCHAR(32) NOT NULL DEFAULT 'pending',
     delivery_date DATE NULL,

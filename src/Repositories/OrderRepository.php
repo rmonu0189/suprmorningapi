@@ -56,6 +56,7 @@ final class OrderRepository
         string $userId,
         ?string $cartId,
         ?string $addressId,
+        ?string $addressLabel,
         string $orderStatus,
         string $paymentStatus,
         ?string $deliveryDate,
@@ -84,10 +85,10 @@ final class OrderRepository
         $pdo = Database::connection();
         $orderCode = self::nextOrderCode($pdo);
 
-        $sql = 'INSERT INTO orders (id, order_code, user_id, cart_id, address_id, order_status, payment_status, delivery_date, delivery_slot,
+        $sql = 'INSERT INTO orders (id, order_code, user_id, cart_id, address_id, address_label, order_status, payment_status, delivery_date, delivery_slot,
                 delivery_type, total_mrp, tax, delivery_fee, grand_total, currency, recipient_name, recipient_phone, full_address,
                 city, state, country, postal_code, total_price, total_charges, gateway_order_id, gateway_name, charges_metadata)
-             VALUES (:id, :code, :uid, :cid, :aid, :os, :ps, :dd, :ds, :dt, :tm, :tx, :df, :gt, :cur, :rn, :rp, :fa, :city, :st, :ctry, :pc,
+             VALUES (:id, :code, :uid, :cid, :aid, :al, :os, :ps, :dd, :ds, :dt, :tm, :tx, :df, :gt, :cur, :rn, :rp, :fa, :city, :st, :ctry, :pc,
                 :tp, :tc, :go, :gn, :cm)';
 
         for ($attempt = 0; $attempt < 8; $attempt++) {
@@ -99,6 +100,7 @@ final class OrderRepository
                     'uid' => $userId,
                     'cid' => $cartId,
                     'aid' => $addressId,
+                    'al' => $addressLabel,
                     'os' => $orderStatus,
                     'ps' => $paymentStatus,
                     'dd' => $deliveryDate,
@@ -438,6 +440,7 @@ final class OrderRepository
         $w = implode(' AND ', $where);
         $sql = "SELECT o.id, o.order_code, o.order_status, o.payment_status, o.delivery_date, o.delivery_slot, o.delivery_type,
                        o.grand_total, o.currency, o.recipient_name, o.recipient_phone, o.full_address,
+                       o.address_label AS address_label,
                        o.city, o.state, o.country, o.postal_code, o.created_at, o.delivered_at,
                        COALESCE(oi_agg.line_count, 0) AS item_lines,
                        COALESCE(oi_agg.total_qty, 0) AS item_qty,
@@ -486,6 +489,7 @@ final class OrderRepository
             if (!is_array($row)) continue;
             $orderOnly = self::stripJoinedOrderRow($row);
             $base = self::formatOrderHeader($orderOnly, []);
+            $base['address_label'] = isset($row['address_label']) && $row['address_label'] !== '' ? (string) $row['address_label'] : '';
             $base['customer'] = [
                 'phone' => isset($row['customer_phone']) && $row['customer_phone'] !== '' ? (string) $row['customer_phone'] : null,
                 'email' => isset($row['customer_email']) && $row['customer_email'] !== '' ? (string) $row['customer_email'] : null,
