@@ -231,40 +231,6 @@ final class AdminWarehouseController
         Response::json(['warehouse' => $row]);
     }
 
-    public function delete(Request $request): void
-    {
-        if (AuthMiddleware::requireAdmin($request) === null) {
-            return;
-        }
-
-        $id = trim((string) ($request->query('id') ?? ''));
-        if ($id === '') {
-            $body = $request->json();
-            $id = trim((string) ($body['id'] ?? ''));
-        }
-
-        if ($id === '' || !preg_match('/^\d+$/', $id)) {
-            Response::json([
-                'error' => 'Invalid id',
-                'errors' => ['id' => 'Provide a valid integer id via ?id= or JSON body.'],
-            ], 422);
-            return;
-        }
-
-        $idInt = (int) $id;
-        if (WarehouseRepository::findById($idInt) === null) {
-            Response::json(['error' => 'Not Found'], 404);
-            return;
-        }
-
-        if (!WarehouseRepository::delete($idInt)) {
-            Response::json(['error' => 'Not Found'], 404);
-            return;
-        }
-
-        Response::json(['ok' => true]);
-    }
-
     private static function optionalNullableString(array $body, string $key): ?string
     {
         if (!array_key_exists($key, $body)) return null;
