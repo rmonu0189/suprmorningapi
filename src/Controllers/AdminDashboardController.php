@@ -9,13 +9,15 @@ use App\Core\Response;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\AdminAnalyticsRepository;
 use App\Repositories\AdminDashboardRepository;
+use App\Repositories\UserRepository;
 
 final class AdminDashboardController
 {
     /** GET /v1/admin/dashboard/summary */
     public function summary(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -36,13 +38,20 @@ final class AdminDashboardController
         $fromSql = $today . ' 00:00:00';
         $toSql = date('Y-m-d', strtotime($today . ' +1 day')) . ' 00:00:00';
 
-        $todayOverview = AdminAnalyticsRepository::overview($fromSql, $toSql);
+        $warehouseId = null;
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if (($role === 'staff' || $role === 'manager' || $role === 'delivery') && $sub !== '') {
+            $warehouseId = UserRepository::findWarehouseId($sub);
+        }
+
+        $todayOverview = AdminAnalyticsRepository::overview($fromSql, $toSql, $warehouseId);
 
         Response::json([
             'totals' => [
-                'total_users' => AdminDashboardRepository::totalUsers(),
-                'total_orders' => AdminDashboardRepository::totalOrders(),
-                'total_revenue_success' => AdminDashboardRepository::totalRevenueSuccess(),
+                'total_users' => AdminDashboardRepository::totalUsers($warehouseId),
+                'total_orders' => AdminDashboardRepository::totalOrders($warehouseId),
+                'total_revenue_success' => AdminDashboardRepository::totalRevenueSuccess($warehouseId),
             ],
             'today' => [
                 'date' => $today,
@@ -51,7 +60,7 @@ final class AdminDashboardController
                 'revenue_success' => (float) ($todayOverview['revenue_success'] ?? 0),
                 'users_created' => (int) ($todayOverview['users_created'] ?? 0),
             ],
-            'recent_orders' => AdminDashboardRepository::recentSuccessOrders(5),
+            'recent_orders' => AdminDashboardRepository::recentSuccessOrders(5, $warehouseId),
         ]);
     }
 }

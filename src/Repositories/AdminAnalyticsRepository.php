@@ -19,25 +19,40 @@ final class AdminAnalyticsRepository
      *   users_created: int
      * }
      */
-    public static function overview(string $fromInclusive, string $toExclusive): array
+    public static function overview(string $fromInclusive, string $toExclusive, ?int $warehouseId = null): array
     {
         $pdo = Database::connection();
 
-        $countInRange = static function (string $table, ?string $extraWhere = null) use ($pdo, $fromInclusive, $toExclusive): int {
+        $countInRange = static function (string $table, ?string $extraWhere = null) use ($pdo, $fromInclusive, $toExclusive, $warehouseId): int {
             $where = "created_at >= :from AND created_at < :to";
             if ($extraWhere !== null && trim($extraWhere) !== '') {
                 $where .= " AND ($extraWhere)";
             }
+            if ($warehouseId !== null && $table === 'orders') {
+                $where .= " AND warehouse_id = :wid";
+            }
+            if ($warehouseId !== null && $table === 'users') {
+                $where .= " AND warehouse_id = :wid";
+            }
             $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM {$table} WHERE {$where}");
-            $stmt->execute(['from' => $fromInclusive, 'to' => $toExclusive]);
+            $params = ['from' => $fromInclusive, 'to' => $toExclusive];
+            if ($warehouseId !== null && ($table === 'orders' || $table === 'users')) {
+                $params['wid'] = $warehouseId;
+            }
+            $stmt->execute($params);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             return is_array($row) ? (int) ($row['c'] ?? 0) : 0;
         };
 
-        $sumOrders = static function (string $whereExtra) use ($pdo, $fromInclusive, $toExclusive): float {
+        $sumOrders = static function (string $whereExtra) use ($pdo, $fromInclusive, $toExclusive, $warehouseId): float {
             $where = "created_at >= :from AND created_at < :to AND ($whereExtra)";
+            $params = ['from' => $fromInclusive, 'to' => $toExclusive];
+            if ($warehouseId !== null) {
+                $where .= " AND warehouse_id = :wid";
+                $params['wid'] = $warehouseId;
+            }
             $stmt = $pdo->prepare("SELECT COALESCE(SUM(grand_total), 0) AS s FROM orders WHERE {$where}");
-            $stmt->execute(['from' => $fromInclusive, 'to' => $toExclusive]);
+            $stmt->execute($params);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             return is_array($row) ? (float) ($row['s'] ?? 0) : 0.0;
         };

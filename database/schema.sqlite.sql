@@ -5,7 +5,8 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  phone TEXT NOT NULL UNIQUE,
+  phone TEXT NOT NULL,
+  country_code TEXT NOT NULL DEFAULT '+91',
   email TEXT NULL UNIQUE,
   full_name TEXT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
@@ -13,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_country_phone ON users(country_code, phone);
 
 CREATE TABLE IF NOT EXISTS phone_otp_challenges (
   id TEXT PRIMARY KEY,
@@ -101,15 +104,19 @@ CREATE TABLE IF NOT EXISTS variants (
 CREATE TABLE IF NOT EXISTS inventory (
   id TEXT PRIMARY KEY,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  warehouse_id INTEGER NOT NULL DEFAULT 0,
   variant_id TEXT NOT NULL UNIQUE,
   quantity INTEGER NOT NULL DEFAULT 0,
   reserved_quantity INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (variant_id) REFERENCES variants(id) ON DELETE CASCADE
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_wh_variant ON inventory(warehouse_id, variant_id);
+
 CREATE TABLE IF NOT EXISTS inventory_movements (
   id TEXT PRIMARY KEY,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  warehouse_id INTEGER NOT NULL DEFAULT 0,
   variant_id TEXT NOT NULL,
   delta_quantity INTEGER NOT NULL,
   note TEXT NULL,
@@ -131,8 +138,8 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 -- Seed an admin user for local OTP login (OTP_TEST_PHONES includes 919109322140).
-INSERT OR IGNORE INTO users (id, phone, email, full_name, is_active, role)
-VALUES ('00000000-0000-4000-8000-000000000001', '919109322140', 'admin@local.test', 'Local Admin', 1, 'admin');
+INSERT OR IGNORE INTO users (id, phone, country_code, email, full_name, is_active, role)
+VALUES ('00000000-0000-4000-8000-000000000001', '9109322140', '+91', 'admin@local.test', 'Local Admin', 1, 'admin');
 
 -- Seed a couple of orders for the dashboard recent orders table.
 INSERT OR IGNORE INTO orders (id, user_id, order_status, payment_status, grand_total, currency, created_at)

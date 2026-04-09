@@ -216,6 +216,9 @@ final class Database
         );
 
         // If the DB existed with older minimal tables, ensure required columns exist.
+        self::ensureSqliteColumn($pdo, 'users', 'country_code', 'TEXT', "'+91'");
+        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_users_country_phone ON users(country_code, phone)');
+
         self::ensureSqliteColumn($pdo, 'products', 'brand_id', 'TEXT', "''");
         self::ensureSqliteColumn($pdo, 'products', 'category_id', 'TEXT', 'NULL');
         self::ensureSqliteColumn($pdo, 'products', 'subcategory_id', 'TEXT', 'NULL');
@@ -251,10 +254,15 @@ final class Database
         // Promote the first OTP_TEST_PHONE to an admin user for local testing.
         $raw = (string) Env::get('OTP_TEST_PHONES', '');
         $first = trim(explode(',', $raw)[0] ?? '');
-        $phone = Phone::normalize($first) ?? '919109322140';
+        $parsed = Phone::parseLocalAndCountryCode($first, \App\Repositories\UserRepository::DEFAULT_COUNTRY_CODE);
+        if ($parsed === null) {
+            $parsed = Phone::parseLocalAndCountryCode('919109322140', \App\Repositories\UserRepository::DEFAULT_COUNTRY_CODE);
+        }
+        $phone = $parsed !== null ? $parsed['phone'] : '9109322140';
+        $countryCode = $parsed !== null ? $parsed['country_code'] : \App\Repositories\UserRepository::DEFAULT_COUNTRY_CODE;
 
-        $stmt = $pdo->prepare('SELECT id FROM users WHERE phone = :p LIMIT 1');
-        $stmt->execute(['p' => $phone]);
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE phone = :p AND country_code = :cc LIMIT 1');
+        $stmt->execute(['p' => $phone, 'cc' => $countryCode]);
         $id = $stmt->fetchColumn();
 
         if ($id !== false && is_string($id) && $id !== '') {
@@ -262,18 +270,19 @@ final class Database
             $upd->execute(['id' => $id]);
         } else {
             $ins = $pdo->prepare(
-                "INSERT INTO users (id, phone, email, full_name, is_active, role, created_at)
-                 VALUES (:id, :phone, :email, :full_name, 1, 'admin', CURRENT_TIMESTAMP)"
+                "INSERT INTO users (id, phone, country_code, email, full_name, is_active, role, created_at)
+                 VALUES (:id, :phone, :country_code, :email, :full_name, 1, 'admin', CURRENT_TIMESTAMP)"
             );
             $ins->execute([
                 'id' => Uuid::v4(),
                 'phone' => $phone,
+                'country_code' => $countryCode,
                 'email' => 'admin@local.test',
                 'full_name' => 'Local Admin',
             ]);
 
-            $stmt = $pdo->prepare('SELECT id FROM users WHERE phone = :p LIMIT 1');
-            $stmt->execute(['p' => $phone]);
+            $stmt = $pdo->prepare('SELECT id FROM users WHERE phone = :p AND country_code = :cc LIMIT 1');
+            $stmt->execute(['p' => $phone, 'cc' => $countryCode]);
             $id = $stmt->fetchColumn();
         }
 

@@ -19,20 +19,36 @@ use PDOException;
 final class AuthService
 {
     private const MAX_FULL_NAME_LENGTH = 255;
+    private const REGISTRATION_CLIENT_MOBILE = 'mobile';
+    private const ADMIN_PORTAL_FORBIDDEN_MESSAGE = 'You are not authorizes to access this portal';
 
     /** @return array{ok: true, expires_in: int, debug_otp_code?: string} */
     public function requestOtp(array $body): array
     {
-        $phone = Phone::normalize((string) ($body['phone'] ?? ''));
-        if ($phone === null) {
+        $parsed = Phone::parseLocalAndCountryCode((string) ($body['phone'] ?? ''), UserRepository::DEFAULT_COUNTRY_CODE);
+        if ($parsed === null) {
             throw new ValidationException('Invalid phone number', [
-                'phone' => 'Provide 10–15 digits (country code included if applicable).',
+                'phone' => 'Provide 10 digits (without country code).',
             ]);
         }
 
-        $auth = UserRepository::findAuthByPhone($phone);
+        $phone = $parsed['phone'];
+        $countryCode = $parsed['country_code'];
+
+        $auth = UserRepository::findAuthByPhone($phone, $countryCode);
         if ($auth !== null && !$auth['is_active']) {
             throw new HttpException('Account is disabled', 403);
+        }
+
+        // Block admin portal access for new numbers and for normal "user" accounts.
+        if (!$this->isMobileRegistrationClient($body)) {
+            if ($auth === null) {
+                throw new HttpException(self::ADMIN_PORTAL_FORBIDDEN_MESSAGE, 403);
+            }
+            $role = (string) ($auth['role'] ?? UserRepository::DEFAULT_ROLE);
+            if ($role === UserRepository::DEFAULT_ROLE) {
+                throw new HttpException(self::ADMIN_PORTAL_FORBIDDEN_MESSAGE, 403);
+            }
         }
 
         $ttl = $this->otpTtlSeconds();
@@ -46,12 +62,15 @@ final class AuthService
      */
     public function verifyOtp(array $body, ?string $userAgent, ?string $deviceLabel): array
     {
-        $phone = Phone::normalize((string) ($body['phone'] ?? ''));
-        if ($phone === null) {
+        $parsed = Phone::parseLocalAndCountryCode((string) ($body['phone'] ?? ''), UserRepository::DEFAULT_COUNTRY_CODE);
+        if ($parsed === null) {
             throw new ValidationException('Invalid phone number', [
-                'phone' => 'Provide 10–15 digits (country code included if applicable).',
+                'phone' => 'Provide 10 digits (without country code).',
             ]);
         }
+
+        $phone = $parsed['phone'];
+        $countryCode = $parsed['country_code'];
 
         $code = $this->normalizeOtpCode((string) ($body['code'] ?? ''));
         if ($code === null) {
@@ -60,11 +79,14 @@ final class AuthService
             ]);
         }
 
-        $isExisting = UserRepository::phoneTaken($phone);
+        $isExisting = UserRepository::phoneTaken($phone, $countryCode);
         $registerFullName = null;
         $registerEmail = null;
 
         if (!$isExisting) {
+            if (!$this->isMobileRegistrationClient($body)) {
+                throw new HttpException(self::ADMIN_PORTAL_FORBIDDEN_MESSAGE, 403);
+            }
             $registerFullName = $this->optionalFullName($body['full_name'] ?? null);
             $registerEmail = $this->parseOptionalRegisterEmail($body['email'] ?? null);
             if ($registerEmail !== null && UserRepository::emailTaken($registerEmail)) {
@@ -101,11 +123,20 @@ final class AuthService
 
         PhoneOtpChallengeRepository::deleteById($row['id']);
 
-        if ($isExisting) {
-            return $this->completeLoginAfterOtp($phone, $userAgent, $deviceLabel);
+        // If this request is coming from anything other than the mobile app, only allow staff/admin roles.
+        if (!$this->isMobileRegistrationClient($body)) {
+            $auth = UserRepository::findAuthByPhone($phone, $countryCode);
+            $role = is_array($auth) ? (string) ($auth['role'] ?? UserRepository::DEFAULT_ROLE) : UserRepository::DEFAULT_ROLE;
+            if ($role === UserRepository::DEFAULT_ROLE) {
+                throw new HttpException(self::ADMIN_PORTAL_FORBIDDEN_MESSAGE, 403);
+            }
         }
 
-        return $this->completeRegisterAfterOtp($phone, $registerFullName, $registerEmail, $userAgent, $deviceLabel);
+        if ($isExisting) {
+            return $this->completeLoginAfterOtp($phone, $countryCode, $userAgent, $deviceLabel);
+        }
+
+        return $this->completeRegisterAfterOtp($phone, $countryCode, $registerFullName, $registerEmail, $userAgent, $deviceLabel);
     }
 
     /**
@@ -151,19 +182,20 @@ final class AuthService
 
     private function completeRegisterAfterOtp(
         string $phone,
+        string $countryCode,
         ?string $fullName,
         ?string $email,
         ?string $userAgent,
         ?string $deviceLabel
     ): array {
-        if (UserRepository::phoneTaken($phone)) {
+        if (UserRepository::phoneTaken($phone, $countryCode)) {
             throw new HttpException('Account already exists', 409);
         }
 
         $id = Uuid::v4();
 
         try {
-            UserRepository::insert($id, $phone, $email, $fullName, true);
+            UserRepository::insert($id, $phone, $countryCode, $email, $fullName, true);
         } catch (PDOException $e) {
             if ($e->getCode() === '23000') {
                 throw new HttpException('Account already exists', 409);
@@ -182,9 +214,9 @@ final class AuthService
     /**
      * @return array{user: array<string, mixed>, access_token: string, refresh_token: string, expires_in: int}
      */
-    private function completeLoginAfterOtp(string $phone, ?string $userAgent, ?string $deviceLabel): array
+    private function completeLoginAfterOtp(string $phone, string $countryCode, ?string $userAgent, ?string $deviceLabel): array
     {
-        $auth = UserRepository::findAuthByPhone($phone);
+        $auth = UserRepository::findAuthByPhone($phone, $countryCode);
         if ($auth === null) {
             throw new HttpException('No account for this phone number', 404);
         }
@@ -275,8 +307,8 @@ final class AuthService
         }
 
         foreach (explode(',', $raw) as $entry) {
-            $n = Phone::normalize(trim($entry));
-            if ($n !== null && $n === $normalizedPhone) {
+            $parsed = Phone::parseLocalAndCountryCode(trim($entry), UserRepository::DEFAULT_COUNTRY_CODE);
+            if ($parsed !== null && $parsed['phone'] === $normalizedPhone) {
                 return true;
             }
         }
@@ -306,6 +338,16 @@ final class AuthService
         }
 
         return $s;
+    }
+
+    /** @param array<string, mixed> $body */
+    private function isMobileRegistrationClient(array $body): bool
+    {
+        $v = $body['client'] ?? null;
+        if (!is_string($v)) {
+            return false;
+        }
+        return strtolower(trim($v)) === self::REGISTRATION_CLIENT_MOBILE;
     }
 
     private function otpLength(): int
@@ -366,6 +408,7 @@ final class AuthService
             'user' => [
                 'id' => $user['id'],
                 'phone' => $user['phone'],
+                'country_code' => $user['country_code'] ?? UserRepository::DEFAULT_COUNTRY_CODE,
                 'email' => $user['email'],
                 'full_name' => $user['full_name'],
                 'role' => $role,

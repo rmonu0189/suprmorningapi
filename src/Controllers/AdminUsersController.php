@@ -25,7 +25,8 @@ final class AdminUsersController
      */
     public function index(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -45,12 +46,34 @@ final class AdminUsersController
             $excludeRole = UserRepository::DEFAULT_ROLE;
         }
 
+        $warehouseId = null;
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if ($role === 'manager' && $sub !== '') {
+            $warehouseId = UserRepository::findWarehouseId($sub);
+            if ($warehouseId === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+        }
+
         if ($q !== '') {
-            $total = UserRepository::countSearchAll($q);
-            $users = UserRepository::searchAllPaged($q, $offset, $limit);
+            // Manager search is limited to their warehouse staff list (not global).
+            if ($warehouseId !== null) {
+                $total = UserRepository::countByRoleExcludingAndWarehouse($excludeRole, $warehouseId);
+                $users = UserRepository::listByRoleExcludingWarehousePaged($excludeRole, $warehouseId, $offset, $limit);
+            } else {
+                $total = UserRepository::countSearchAll($q);
+                $users = UserRepository::searchAllPaged($q, $offset, $limit);
+            }
         } else {
-            $total = UserRepository::countByRoleExcluding($excludeRole);
-            $users = UserRepository::listByRoleExcludingPaged($excludeRole, $offset, $limit);
+            if ($warehouseId !== null) {
+                $total = UserRepository::countByRoleExcludingAndWarehouse($excludeRole, $warehouseId);
+                $users = UserRepository::listByRoleExcludingWarehousePaged($excludeRole, $warehouseId, $offset, $limit);
+            } else {
+                $total = UserRepository::countByRoleExcluding($excludeRole);
+                $users = UserRepository::listByRoleExcludingPaged($excludeRole, $offset, $limit);
+            }
         }
 
         Response::json([
@@ -64,7 +87,8 @@ final class AdminUsersController
     /** GET /v1/admin/users/by-phone?phone=+919876543210 */
     public function byPhone(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -74,17 +98,28 @@ final class AdminUsersController
             return;
         }
 
-        // Basic sanity: digits length check (accept +, spaces, etc).
-        $normalizedDigits = Phone::normalize($phone);
-        if ($normalizedDigits === null) {
+        // Basic sanity + normalization to local phone (accept +, spaces, etc).
+        $parsed = Phone::parseLocalAndCountryCode($phone, UserRepository::DEFAULT_COUNTRY_CODE);
+        if ($parsed === null) {
             Response::json(['error' => 'Invalid phone', 'errors' => ['phone' => 'Enter a valid phone number.']], 422);
             return;
         }
 
-        $user = UserRepository::findByPhoneExact($phone);
+        $user = UserRepository::findByPhoneExact($parsed['phone'], $parsed['country_code']);
         if ($user === null) {
             Response::json(['error' => 'Not Found'], 404);
             return;
+        }
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if ($role === 'manager' && $sub !== '') {
+            $wid = UserRepository::findWarehouseId($sub);
+            $userWid = $user['warehouse_id'] ?? null;
+            if ($wid === null || $userWid === null || (int) $userWid !== (int) $wid) {
+                Response::json(['error' => 'Not Found'], 404);
+                return;
+            }
         }
 
         Response::json(['user' => $user]);
@@ -143,10 +178,10 @@ final class AdminUsersController
         }
 
         // Warehouse rules:
-        // - staff/manager must have warehouse_id (admin provides; manager auto-assigns their own)
-        // - delivery/user/admin => warehouse_id must be null
+        // - staff/manager/delivery must have warehouse_id (admin provides; manager auto-assigns their own)
+        // - user/admin => warehouse_id must be null
         $warehouseId = null;
-        if ($role === 'staff' || $role === 'manager') {
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
             if ($actorRole === 'manager') {
                 $warehouseId = $actorUserId !== '' ? UserRepository::findWarehouseId($actorUserId) : null;
                 if ($warehouseId === null) {

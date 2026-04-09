@@ -76,7 +76,12 @@ final class VariantsController
 
     public function create(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
+            return;
+        }
+        if (((string) ($claims['role'] ?? '')) === 'manager') {
+            Response::json(['error' => 'Forbidden'], 403);
             return;
         }
 
@@ -140,7 +145,8 @@ final class VariantsController
                 $status,
                 $discountTag
             );
-            InventoryRepository::insert(Uuid::v4(), $id, 0, 0);
+            // Legacy/global bucket (admin can later adjust per-warehouse stock).
+            InventoryRepository::insert(Uuid::v4(), 0, $id, 0, 0);
         } catch (PDOException $e) {
             $msg = $e->getMessage();
             if (str_contains($msg, 'Duplicate') || str_contains($msg, '1062')) {
@@ -160,7 +166,12 @@ final class VariantsController
 
     public function update(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
+            return;
+        }
+        if (((string) ($claims['role'] ?? '')) === 'manager') {
+            Response::json(['error' => 'Forbidden'], 403);
             return;
         }
 
@@ -290,7 +301,12 @@ final class VariantsController
 
     public function delete(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
+            return;
+        }
+        if (((string) ($claims['role'] ?? '')) === 'manager') {
+            Response::json(['error' => 'Forbidden'], 403);
             return;
         }
 

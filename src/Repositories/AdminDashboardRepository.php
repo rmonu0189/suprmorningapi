@@ -9,34 +9,51 @@ use PDO;
 
 final class AdminDashboardRepository
 {
-    public static function totalUsers(): int
+    public static function totalUsers(?int $warehouseId = null): int
     {
-        $stmt = Database::connection()->query('SELECT COUNT(*) AS c FROM users');
-        $row = $stmt !== false ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+        // For warehouse-scoped dashboards (staff/manager/delivery), count staff-like users only.
+        if ($warehouseId !== null) {
+            $stmt = Database::connection()->prepare('SELECT COUNT(*) AS c FROM users WHERE warehouse_id = :wid');
+            $stmt->execute(['wid' => $warehouseId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $stmt = Database::connection()->query('SELECT COUNT(*) AS c FROM users');
+            $row = $stmt !== false ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+        }
         return is_array($row) ? (int) ($row['c'] ?? 0) : 0;
     }
 
-    public static function totalRevenueSuccess(): float
+    public static function totalRevenueSuccess(?int $warehouseId = null): float
     {
-        $stmt = Database::connection()->prepare(
-            "SELECT COALESCE(SUM(grand_total), 0) AS s FROM orders WHERE payment_status = 'success'"
-        );
-        $stmt->execute();
+        $sql = "SELECT COALESCE(SUM(grand_total), 0) AS s FROM orders WHERE payment_status = 'success'";
+        $params = [];
+        if ($warehouseId !== null) {
+            $sql .= ' AND warehouse_id = :wid';
+            $params['wid'] = $warehouseId;
+        }
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return is_array($row) ? (float) ($row['s'] ?? 0) : 0.0;
     }
 
-    public static function totalOrders(): int
+    public static function totalOrders(?int $warehouseId = null): int
     {
-        $stmt = Database::connection()->query('SELECT COUNT(*) AS c FROM orders');
-        $row = $stmt !== false ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+        if ($warehouseId !== null) {
+            $stmt = Database::connection()->prepare('SELECT COUNT(*) AS c FROM orders WHERE warehouse_id = :wid');
+            $stmt->execute(['wid' => $warehouseId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $stmt = Database::connection()->query('SELECT COUNT(*) AS c FROM orders');
+            $row = $stmt !== false ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
+        }
         return is_array($row) ? (int) ($row['c'] ?? 0) : 0;
     }
 
     /**
      * @return list<array<string, mixed>>
      */
-    public static function recentSuccessOrders(int $limit = 5): array
+    public static function recentSuccessOrders(int $limit = 5, ?int $warehouseId = null): array
     {
         $limit = max(1, min(25, $limit));
         $sql = "SELECT
@@ -56,10 +73,17 @@ final class AdminDashboardRepository
                   u.full_name AS customer_full_name
                 FROM orders o
                 LEFT JOIN users u ON u.id = o.user_id
-                WHERE o.payment_status = 'success'
+                WHERE o.payment_status = 'success'";
+        if ($warehouseId !== null) {
+            $sql .= " AND o.warehouse_id = :wid";
+        }
+        $sql .= "
                 ORDER BY o.created_at DESC, o.id DESC
                 LIMIT :lim";
         $stmt = Database::connection()->prepare($sql);
+        if ($warehouseId !== null) {
+            $stmt->bindValue('wid', $warehouseId, PDO::PARAM_INT);
+        }
         $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

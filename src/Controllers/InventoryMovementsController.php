@@ -13,6 +13,7 @@ use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\InventoryMovementRepository;
 use App\Repositories\InventoryRepository;
+use App\Repositories\UserRepository;
 use App\Repositories\VariantRepository;
 use PDOException;
 
@@ -20,8 +21,26 @@ final class InventoryMovementsController
 {
     public function index(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
+        }
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        $warehouseId = 0;
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
+            $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+            if ($wid === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            $warehouseId = $wid;
+        } else {
+            $widParam = $request->query('warehouse_id');
+            if ($widParam !== null && trim((string) $widParam) !== '' && preg_match('/^\d+$/', trim((string) $widParam))) {
+                $warehouseId = (int) trim((string) $widParam);
+            }
         }
 
         $variantId = $request->query('variant_id');
@@ -41,7 +60,7 @@ final class InventoryMovementsController
         $offset = is_string($offsetRaw) && preg_match('/^\d+$/', $offsetRaw) ? (int) $offsetRaw : 0;
 
         Response::json([
-            'movements' => InventoryMovementRepository::findAll($filter, $limit, $offset),
+            'movements' => InventoryMovementRepository::findAll($warehouseId, $filter, $limit, $offset),
             'limit' => $limit,
             'offset' => $offset,
         ]);
@@ -97,8 +116,31 @@ final class InventoryMovementsController
             $createdBy = $sub;
         }
 
+        $role = (string) ($claims['role'] ?? '');
+        $warehouseId = 0;
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
+            $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+            if ($wid === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            $warehouseId = $wid;
+        } else {
+            if (!array_key_exists('warehouse_id', $body)) {
+                throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Required for admin inventory movements.']);
+            }
+            $raw = $body['warehouse_id'];
+            if (is_int($raw)) {
+                $warehouseId = $raw;
+            } elseif (is_string($raw) && preg_match('/^\d+$/', $raw)) {
+                $warehouseId = (int) $raw;
+            } else {
+                throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Must be an integer.']);
+            }
+        }
+
         // Apply movement: update inventory and insert movement record.
-        $existing = InventoryRepository::findByVariantId($variantId);
+        $existing = InventoryRepository::findByVariantId($variantId, $warehouseId);
         $currentQty = is_array($existing) ? (int) ($existing['quantity'] ?? 0) : 0;
         $newQty = $currentQty + $delta;
         if ($newQty < 0) {
@@ -107,16 +149,16 @@ final class InventoryMovementsController
 
         try {
             if ($existing === null) {
-                InventoryRepository::insert(Uuid::v4(), $variantId, $newQty, 0);
+                InventoryRepository::insert(Uuid::v4(), $warehouseId, $variantId, $newQty, 0);
             } else {
-                InventoryRepository::updateQuantities($variantId, $newQty, null);
+                InventoryRepository::updateQuantities($warehouseId, $variantId, $newQty, null);
             }
-            InventoryMovementRepository::insert(Uuid::v4(), $variantId, $delta, $note, $createdBy);
+            InventoryMovementRepository::insert(Uuid::v4(), $warehouseId, $variantId, $delta, $note, $createdBy);
         } catch (PDOException $e) {
             throw new HttpException('Could not record inventory movement', 500);
         }
 
-        $row = InventoryRepository::findByVariantId($variantId);
+        $row = InventoryRepository::findByVariantId($variantId, $warehouseId);
         if ($row === null) {
             throw new HttpException('Could not load inventory', 500);
         }

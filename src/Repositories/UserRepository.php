@@ -10,6 +10,7 @@ use PDO;
 final class UserRepository
 {
     public const DEFAULT_ROLE = 'user';
+    public const DEFAULT_COUNTRY_CODE = '+91';
 
     /**
      * @return null if no user; true/false for is_active when row exists
@@ -43,11 +44,11 @@ final class UserRepository
         return (int) $v;
     }
 
-    /** @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
+    /** @return array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
     public static function findById(string $id): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at FROM users WHERE id = :id LIMIT 1'
+            'SELECT id, phone, country_code, email, full_name, is_active, role, warehouse_id, created_at FROM users WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -62,6 +63,7 @@ final class UserRepository
         return [
             'id' => (string) $row['id'],
             'phone' => (string) $row['phone'],
+            'country_code' => isset($row['country_code']) && $row['country_code'] !== null && $row['country_code'] !== '' ? (string) $row['country_code'] : self::DEFAULT_COUNTRY_CODE,
             'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
             'full_name' => $fn !== null && $fn !== '' ? (string) $fn : null,
             'is_active' => (bool) (int) $row['is_active'],
@@ -71,13 +73,13 @@ final class UserRepository
         ];
     }
 
-    /** @return array{id: string, is_active: bool}|null */
-    public static function findAuthByPhone(string $phone): ?array
+    /** @return array{id: string, is_active: bool, role: string}|null */
+    public static function findAuthByPhone(string $phone, string $countryCode = self::DEFAULT_COUNTRY_CODE): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT id, is_active FROM users WHERE phone = :phone LIMIT 1'
+            'SELECT id, is_active, role FROM users WHERE phone = :phone AND country_code = :country_code LIMIT 1'
         );
-        $stmt->execute(['phone' => $phone]);
+        $stmt->execute(['phone' => $phone, 'country_code' => $countryCode]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!is_array($row)) {
@@ -87,28 +89,29 @@ final class UserRepository
         return [
             'id' => (string) $row['id'],
             'is_active' => (bool) (int) $row['is_active'],
+            'role' => isset($row['role']) && $row['role'] !== null && $row['role'] !== '' ? (string) $row['role'] : self::DEFAULT_ROLE,
         ];
     }
 
-    /** @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
-    public static function findByPhoneExact(string $phone): ?array
+    /** @return array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
+    public static function findByPhoneExact(string $phone, string $countryCode = self::DEFAULT_COUNTRY_CODE): ?array
     {
         $p = trim($phone);
         if ($p === '') return null;
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
-             FROM users WHERE phone = :phone LIMIT 1'
+            'SELECT id, phone, country_code, email, full_name, is_active, role, warehouse_id, created_at
+             FROM users WHERE phone = :phone AND country_code = :country_code LIMIT 1'
         );
-        $stmt->execute(['phone' => $p]);
+        $stmt->execute(['phone' => $p, 'country_code' => $countryCode]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) return null;
         return self::formatUserRow($row);
     }
 
-    public static function phoneTaken(string $phone): bool
+    public static function phoneTaken(string $phone, string $countryCode = self::DEFAULT_COUNTRY_CODE): bool
     {
-        $stmt = Database::connection()->prepare('SELECT 1 FROM users WHERE phone = :phone LIMIT 1');
-        $stmt->execute(['phone' => $phone]);
+        $stmt = Database::connection()->prepare('SELECT 1 FROM users WHERE phone = :phone AND country_code = :country_code LIMIT 1');
+        $stmt->execute(['phone' => $phone, 'country_code' => $countryCode]);
 
         return (bool) $stmt->fetchColumn();
     }
@@ -124,18 +127,20 @@ final class UserRepository
     public static function insert(
         string $id,
         string $phone,
+        ?string $countryCode,
         ?string $email,
         ?string $fullName,
         bool $isActive,
         string $role = self::DEFAULT_ROLE
     ): void {
         $stmt = Database::connection()->prepare(
-            'INSERT INTO users (id, phone, email, full_name, is_active, role)
-             VALUES (:id, :phone, :email, :full_name, :is_active, :role)'
+            'INSERT INTO users (id, phone, country_code, email, full_name, is_active, role)
+             VALUES (:id, :phone, :country_code, :email, :full_name, :is_active, :role)'
         );
         $stmt->execute([
             'id' => $id,
             'phone' => $phone,
+            'country_code' => $countryCode !== null && trim($countryCode) !== '' ? trim($countryCode) : self::DEFAULT_COUNTRY_CODE,
             'email' => $email,
             'full_name' => $fullName,
             'is_active' => $isActive ? 1 : 0,
@@ -173,6 +178,7 @@ final class UserRepository
         return [
             'id' => (string) $row['id'],
             'phone' => (string) $row['phone'],
+            'country_code' => isset($row['country_code']) && $row['country_code'] !== null && $row['country_code'] !== '' ? (string) $row['country_code'] : self::DEFAULT_COUNTRY_CODE,
             'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
             'full_name' => $row['full_name'] !== null && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
             'is_active' => (bool) (int) $row['is_active'],
@@ -368,5 +374,46 @@ final class UserRepository
             'role' => $role !== '' ? $role : self::DEFAULT_ROLE,
             'wid' => $warehouseId,
         ]);
+    }
+
+    public static function countByRoleExcludingAndWarehouse(string $excludeRole, int $warehouseId): int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*) FROM users WHERE role <> :exclude AND warehouse_id = :wid'
+        );
+        $stmt->execute(['exclude' => $excludeRole, 'wid' => $warehouseId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @return list<array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}>
+     */
+    public static function listByRoleExcludingWarehousePaged(string $excludeRole, int $warehouseId, int $offset, int $limit): array
+    {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+        $stmt = Database::connection()->prepare(
+            'SELECT id, phone, country_code, email, full_name, is_active, role, warehouse_id, created_at
+             FROM users
+             WHERE role <> :exclude AND warehouse_id = :wid
+             ORDER BY created_at DESC
+             LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset
+        );
+        $stmt->execute(['exclude' => $excludeRole, 'wid' => $warehouseId]);
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = self::formatUserRow($row);
+            }
+        }
+
+        return $out;
     }
 }

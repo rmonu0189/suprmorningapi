@@ -665,8 +665,9 @@ final class OrderRepository
                        dic.note AS check_note,
                        dic.updated_at AS check_updated_at
                 FROM order_items oi
+                INNER JOIN orders o ON o.id = oi.order_id
                 LEFT JOIN variants v ON v.sku = oi.sku
-                LEFT JOIN inventory i ON i.variant_id = v.id
+                LEFT JOIN inventory i ON i.variant_id = v.id AND i.warehouse_id = COALESCE(o.warehouse_id, 0)
                 LEFT JOIN delivery_item_checks dic ON dic.order_item_id = oi.id
                 WHERE oi.order_id IN ({$ph})
                 ORDER BY oi.order_id ASC, oi.created_at ASC, oi.id ASC";

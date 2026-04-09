@@ -42,9 +42,9 @@ final class AuthController
 
         $body = $request->json();
         $phone = (string) ($body['phone'] ?? '');
-        $normalized = Phone::normalize($phone);
-        if ($normalized !== null) {
-            $rlPhone = $this->rateLimiter->consume('auth:otp:send:phone:' . $normalized, 5, 900);
+        $parsed = Phone::parseLocalAndCountryCode($phone);
+        if ($parsed !== null) {
+            $rlPhone = $this->rateLimiter->consume('auth:otp:send:phone:' . $parsed['country_code'] . ':' . $parsed['phone'], 5, 900);
             if (!$rlPhone['allowed']) {
                 throw new HttpException('Too many OTP requests for this phone number', 429, [
                     'retry_after' => $rlPhone['retry_after'],
@@ -70,18 +70,18 @@ final class AuthController
 
         $body = $request->json();
         $phone = (string) ($body['phone'] ?? '');
-        $normalized = Phone::normalize($phone);
-
-        if ($normalized === null) {
+        $parsed = Phone::parseLocalAndCountryCode($phone);
+        if ($parsed === null) {
             Response::json([
                 'error' => 'Invalid phone number',
-                'errors' => ['phone' => 'Provide 10–15 digits (country code included if applicable).'],
+                'errors' => ['phone' => 'Provide 10 digits (without country code).'],
             ], 422);
             return;
         }
 
         $ip = $request->ip();
-        $locked = $this->lockout->isLocked($normalized, $ip);
+        $lockKey = $parsed['country_code'] . ':' . $parsed['phone'];
+        $locked = $this->lockout->isLocked($lockKey, $ip);
         if ($locked['locked']) {
             throw new HttpException('Too many failed attempts', 429, [
                 'retry_after' => $locked['retry_after'],
@@ -102,12 +102,12 @@ final class AuthController
             $payload = $this->auth->verifyOtp($body, $ua, $device);
         } catch (HttpException $e) {
             if ($e->statusCode() === 401) {
-                $this->lockout->onFailedAttempt($normalized, $ip);
+                $this->lockout->onFailedAttempt($lockKey, $ip);
             }
             throw $e;
         }
 
-        $this->lockout->onSuccessfulLogin($normalized, $ip);
+        $this->lockout->onSuccessfulLogin($lockKey, $ip);
 
         Response::json($payload);
     }

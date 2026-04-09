@@ -12,6 +12,7 @@ use App\Core\Uuid;
 use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\InventoryRepository;
+use App\Repositories\UserRepository;
 use App\Repositories\VariantRepository;
 use PDOException;
 
@@ -19,8 +20,27 @@ final class InventoryController
 {
     public function index(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
+        }
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        $warehouseId = 0;
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
+            $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+            if ($wid === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            $warehouseId = $wid;
+        } else {
+            // Admin: allow optional ?warehouse_id=... filter, default to legacy/global bucket (0).
+            $widParam = $request->query('warehouse_id');
+            if ($widParam !== null && trim((string) $widParam) !== '' && preg_match('/^\d+$/', trim((string) $widParam))) {
+                $warehouseId = (int) trim((string) $widParam);
+            }
         }
 
         $variantId = $request->query('variant_id');
@@ -34,17 +54,42 @@ final class InventoryController
             $filter = $variantId;
         }
 
-        Response::json(['inventory' => InventoryRepository::findAll($filter)]);
+        Response::json(['inventory' => InventoryRepository::findAll($warehouseId, $filter)]);
     }
 
     public function update(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
         Validator::requireJsonContentType($request);
         $body = $request->json();
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        $warehouseId = 0;
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
+            $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+            if ($wid === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            $warehouseId = $wid;
+        } else {
+            if (!array_key_exists('warehouse_id', $body)) {
+                throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Required for admin inventory updates.']);
+            }
+            $raw = $body['warehouse_id'];
+            if (is_int($raw)) {
+                $warehouseId = $raw;
+            } elseif (is_string($raw) && preg_match('/^\d+$/', $raw)) {
+                $warehouseId = (int) $raw;
+            } else {
+                throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Must be an integer.']);
+            }
+        }
 
         $variantId = trim((string) ($body['variant_id'] ?? ''));
         if ($variantId === '' || !Uuid::isValid($variantId)) {
@@ -72,14 +117,15 @@ final class InventoryController
             ]);
         }
 
-        $existing = InventoryRepository::findByVariantId($variantId);
+        $existing = InventoryRepository::findByVariantId($variantId, $warehouseId);
         try {
             if ($existing === null) {
                 $q = $quantity ?? 0;
                 $r = $reserved ?? 0;
-                InventoryRepository::insert(Uuid::v4(), $variantId, $q, $r);
+                InventoryRepository::insert(Uuid::v4(), $warehouseId, $variantId, $q, $r);
             } else {
                 InventoryRepository::updateQuantities(
+                    $warehouseId,
                     $variantId,
                     $quantity,
                     $reserved
@@ -89,7 +135,7 @@ final class InventoryController
             throw new HttpException('Could not update inventory', 500);
         }
 
-        $row = InventoryRepository::findByVariantId($variantId);
+        $row = InventoryRepository::findByVariantId($variantId, $warehouseId);
         if ($row === null) {
             throw new HttpException('Could not load inventory', 500);
         }
