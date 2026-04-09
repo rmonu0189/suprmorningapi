@@ -353,9 +353,6 @@ final class App
         $router->add('PUT', self::API_PREFIX . '/admin/warehouses', static function (Request $r) use ($adminWarehouses): void {
             $adminWarehouses->update($r);
         });
-        $router->add('DELETE', self::API_PREFIX . '/admin/warehouses', static function (Request $r) use ($adminWarehouses): void {
-            $adminWarehouses->delete($r);
-        });
 
         $router->add('GET', self::API_PREFIX . '/admin/delivery', static function (Request $r) use ($adminDelivery): void {
             $adminDelivery->index($r);
