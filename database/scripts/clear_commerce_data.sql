@@ -7,6 +7,7 @@
 -- Wipes:
 --   - carts + cart_items
 --   - orders + order_items
+--   - order_status_events (order fulfillment audit)
 --   - delivery_item_checks (packing checklist)
 --   - payments + payment_events
 --
@@ -18,6 +19,7 @@ START TRANSACTION;
 -- If anything fails mid-way, rollback instead of leaving half-cleared state.
 
 -- Child tables first (FK-safe).
+DELETE FROM order_status_events;
 DELETE FROM delivery_item_checks;
 DELETE FROM order_items;
 DELETE FROM payments;

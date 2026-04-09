@@ -9,6 +9,7 @@ use App\Controllers\AdminDeliveryController;
 use App\Controllers\AdminDashboardController;
 use App\Controllers\AdminUsersController;
 use App\Controllers\AdminAnalyticsController;
+use App\Controllers\AdminWarehouseController;
 use App\Controllers\AddressController;
 use App\Controllers\AuthController;
 use App\Controllers\AdminUploadsController;
@@ -34,6 +35,7 @@ require_once __DIR__ . '/../Controllers/AdminDeliveryController.php';
 require_once __DIR__ . '/../Controllers/AdminDashboardController.php';
 require_once __DIR__ . '/../Controllers/AdminUsersController.php';
 require_once __DIR__ . '/../Controllers/AdminAnalyticsController.php';
+require_once __DIR__ . '/../Controllers/AdminWarehouseController.php';
 require_once __DIR__ . '/../Controllers/AdminUploadsController.php';
 require_once __DIR__ . '/../Controllers/FilesController.php';
 require_once __DIR__ . '/../Controllers/AddressController.php';
@@ -89,6 +91,7 @@ require_once __DIR__ . '/../Repositories/InventoryMovementRepository.php';
 require_once __DIR__ . '/../Repositories/AddressRepository.php';
 require_once __DIR__ . '/../Repositories/LoveRepository.php';
 require_once __DIR__ . '/../Repositories/OrderRepository.php';
+require_once __DIR__ . '/../Repositories/WarehouseRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentEventRepository.php';
 require_once __DIR__ . '/../Repositories/CouponRepository.php';
@@ -127,6 +130,7 @@ final class App
         $adminAnalytics = new AdminAnalyticsController();
         $adminDashboard = new AdminDashboardController();
         $adminUsers = new AdminUsersController();
+        $adminWarehouses = new AdminWarehouseController();
         $adminUploads = new AdminUploadsController();
         $files = new FilesController();
         $products = new ProductsController();
@@ -333,8 +337,24 @@ final class App
         $router->add('GET', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->index($r);
         });
+        $router->add('GET', self::API_PREFIX . '/admin/orders/status-events', static function (Request $r) use ($adminOrders): void {
+            $adminOrders->statusEvents($r);
+        });
         $router->add('PATCH', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->patch($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/admin/warehouses', static function (Request $r) use ($adminWarehouses): void {
+            $adminWarehouses->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/admin/warehouses', static function (Request $r) use ($adminWarehouses): void {
+            $adminWarehouses->create($r);
+        });
+        $router->add('PUT', self::API_PREFIX . '/admin/warehouses', static function (Request $r) use ($adminWarehouses): void {
+            $adminWarehouses->update($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/admin/warehouses', static function (Request $r) use ($adminWarehouses): void {
+            $adminWarehouses->delete($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/delivery', static function (Request $r) use ($adminDelivery): void {

@@ -269,6 +269,28 @@ CREATE TABLE IF NOT EXISTS files (
     KEY idx_files_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS warehouses (
+    id INT NOT NULL AUTO_INCREMENT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    uuid CHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    address_line_1 VARCHAR(512) NOT NULL,
+    address_line_2 VARCHAR(512) NULL,
+    area VARCHAR(255) NULL,
+    city VARCHAR(128) NOT NULL,
+    state VARCHAR(128) NOT NULL,
+    country VARCHAR(128) NOT NULL,
+    postal_code VARCHAR(32) NOT NULL,
+    latitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
+    longitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
+    status TINYINT(1) NOT NULL DEFAULT 1,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_warehouses_uuid (uuid),
+    UNIQUE KEY uq_warehouses_name (name),
+    KEY idx_warehouses_status (status),
+    KEY idx_warehouses_city (city)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1000;
+
 CREATE TABLE IF NOT EXISTS addresses (
     id CHAR(36) NOT NULL,
     user_id CHAR(36) NOT NULL,
@@ -343,6 +365,20 @@ CREATE TABLE IF NOT EXISTS orders (
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_orders_cart FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE SET NULL,
     CONSTRAINT fk_orders_address FOREIGN KEY (address_id) REFERENCES addresses (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS order_status_events (
+    id CHAR(36) NOT NULL,
+    order_id CHAR(36) NOT NULL,
+    status VARCHAR(32) NOT NULL,            -- e.g. packed|out_for_delivery|delivered
+    changed_by CHAR(36) NULL,               -- user who performed the action (picker/rider/admin)
+    note TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_order_status_events_order_created (order_id, created_at),
+    KEY idx_order_status_events_changed_by (changed_by),
+    CONSTRAINT fk_order_status_events_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
+    CONSTRAINT fk_order_status_events_changed_by FOREIGN KEY (changed_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS order_items (

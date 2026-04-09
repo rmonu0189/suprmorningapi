@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use App\Core\Database;
+use App\Core\Uuid;
 use PDOException;
 use PDO;
 
@@ -372,29 +373,119 @@ final class OrderRepository
         return is_array($row) ? (int) ($row['c'] ?? 0) : 0;
     }
 
+    /**
+     * Admin: timeline of order_status changes (audit trail).
+     *
+     * @return list<array{
+     *   id: string,
+     *   order_id: string,
+     *   status: string,
+     *   note: string|null,
+     *   created_at: string,
+     *   changed_by: array{id: string, phone: string|null, email: string|null, full_name: string|null}|null
+     * }>
+     */
+    public static function findStatusEventsForAdmin(string $orderId): array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT e.id, e.order_id, e.status, e.note, e.created_at,
+                    u.id AS user_id, u.phone AS user_phone, u.email AS user_email, u.full_name AS user_full_name
+             FROM order_status_events e
+             LEFT JOIN users u ON u.id = e.changed_by
+             WHERE e.order_id = :oid
+             ORDER BY e.created_at DESC, e.id DESC'
+        );
+        $stmt->execute(['oid' => $orderId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            $changedBy = null;
+            if (isset($row['user_id']) && is_string($row['user_id']) && $row['user_id'] !== '') {
+                $changedBy = [
+                    'id' => (string) $row['user_id'],
+                    'phone' => isset($row['user_phone']) && $row['user_phone'] !== '' ? (string) $row['user_phone'] : null,
+                    'email' => isset($row['user_email']) && $row['user_email'] !== '' ? (string) $row['user_email'] : null,
+                    'full_name' => isset($row['user_full_name']) && $row['user_full_name'] !== '' ? (string) $row['user_full_name'] : null,
+                ];
+            }
+
+            $out[] = [
+                'id' => (string) ($row['id'] ?? ''),
+                'order_id' => (string) ($row['order_id'] ?? ''),
+                'status' => (string) ($row['status'] ?? ''),
+                'note' => isset($row['note']) && $row['note'] !== '' ? (string) $row['note'] : null,
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'changed_by' => $changedBy,
+            ];
+        }
+
+        return $out;
+    }
+
     public static function updateAdminFulfillment(
         string $orderId,
         ?string $orderStatus,
         bool $orderStatusProvided,
         ?string $deliveredAtSql,
-        bool $deliveredAtProvided
+        bool $deliveredAtProvided,
+        ?string $changedByUserId = null
     ): void {
-        $sets = [];
-        $params = ['id' => $orderId];
-        if ($orderStatusProvided) {
-            $sets[] = 'order_status = :os';
-            $params['os'] = $orderStatus ?? 'created';
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $prevStatus = null;
+            if ($orderStatusProvided) {
+                $stmtPrev = $pdo->prepare('SELECT order_status FROM orders WHERE id = :id LIMIT 1');
+                $stmtPrev->execute(['id' => $orderId]);
+                $v = $stmtPrev->fetchColumn();
+                $prevStatus = is_string($v) ? $v : null;
+            }
+
+            $sets = [];
+            $params = ['id' => $orderId];
+            if ($orderStatusProvided) {
+                $sets[] = 'order_status = :os';
+                $params['os'] = $orderStatus ?? 'created';
+            }
+            if ($deliveredAtProvided) {
+                $sets[] = 'delivered_at = :da';
+                $params['da'] = $deliveredAtSql;
+            }
+            if ($sets !== []) {
+                $sql = 'UPDATE orders SET ' . implode(', ', $sets) . ' WHERE id = :id';
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+            }
+
+            if ($orderStatusProvided) {
+                $newStatus = $orderStatus ?? 'created';
+                if ($prevStatus === null || $prevStatus !== $newStatus) {
+                    $stmtEvt = $pdo->prepare(
+                        'INSERT INTO order_status_events (id, order_id, status, changed_by, note)
+                         VALUES (:id, :oid, :st, :cb, :note)'
+                    );
+                    $stmtEvt->execute([
+                        'id' => Uuid::v4(),
+                        'oid' => $orderId,
+                        'st' => $newStatus,
+                        'cb' => $changedByUserId,
+                        'note' => null,
+                    ]);
+                }
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
-        if ($deliveredAtProvided) {
-            $sets[] = 'delivered_at = :da';
-            $params['da'] = $deliveredAtSql;
-        }
-        if ($sets === []) {
-            return;
-        }
-        $sql = 'UPDATE orders SET ' . implode(', ', $sets) . ' WHERE id = :id';
-        $stmt = Database::connection()->prepare($sql);
-        $stmt->execute($params);
     }
 
     /**

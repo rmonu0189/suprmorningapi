@@ -76,9 +76,31 @@ final class AdminOrderController
         Response::json(['order' => $order]);
     }
 
-    public function patch(Request $request): void
+    public function statusEvents(Request $request): void
     {
         if (AuthMiddleware::requireAdmin($request) === null) {
+            return;
+        }
+
+        $orderId = trim((string) ($request->query('order_id') ?? ''));
+        if ($orderId === '' || !Uuid::isValid($orderId)) {
+            Response::json(['error' => 'Invalid order_id'], 422);
+            return;
+        }
+
+        if (OrderRepository::findByIdForAdmin($orderId) === null) {
+            Response::json(['error' => 'Not Found'], 404);
+            return;
+        }
+
+        $events = OrderRepository::findStatusEventsForAdmin($orderId);
+        Response::json(['events' => $events]);
+    }
+
+    public function patch(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -131,12 +153,18 @@ final class AdminOrderController
             ]);
         }
 
+        $actorUserId = null;
+        if (isset($claims['sub']) && is_string($claims['sub']) && trim($claims['sub']) !== '') {
+            $actorUserId = trim($claims['sub']);
+        }
+
         OrderRepository::updateAdminFulfillment(
             $id,
             $orderStatus,
             $orderStatusProvided,
             $deliveredAtSql,
-            $deliveredAtProvided
+            $deliveredAtProvided,
+            $actorUserId
         );
 
         $order = OrderRepository::findByIdForAdmin($id);
