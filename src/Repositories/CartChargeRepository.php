@@ -10,14 +10,17 @@ use PDO;
 final class CartChargeRepository
 {
     /**
-     * @return list<array{id: string, index: int, title: string, amount: float, min_order_value: float|null, info: string|null}>
+     * @return list<array{id: string, warehouse_id: int, index: int, title: string, amount: float, min_order_value: float|null, info: string|null}>
      */
-    public static function findAllOrdered(): array
+    public static function findAllOrdered(int $warehouseId = 0): array
     {
-        $stmt = Database::connection()->query(
+        $stmt = Database::connection()->prepare(
             'SELECT id, charge_index, title, amount, min_order_value, info
-             FROM cart_charges ORDER BY charge_index ASC, id ASC'
+             FROM cart_charges
+             WHERE warehouse_id = :wid
+             ORDER BY charge_index ASC, id ASC'
         );
+        $stmt->execute(['wid' => $warehouseId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         if (!is_array($rows)) {
             return [];
@@ -34,12 +37,15 @@ final class CartChargeRepository
     }
 
     /** @return array<string, mixed>|null */
-    public static function findById(string $id): ?array
+    public static function findById(string $id, int $warehouseId = 0): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT id, charge_index, title, amount, min_order_value, info FROM cart_charges WHERE id = :id LIMIT 1'
+            'SELECT id, warehouse_id, charge_index, title, amount, min_order_value, info
+             FROM cart_charges
+             WHERE id = :id AND warehouse_id = :wid
+             LIMIT 1'
         );
-        $stmt->execute(['id' => $id]);
+        $stmt->execute(['id' => $id, 'wid' => $warehouseId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
             return null;
@@ -50,6 +56,7 @@ final class CartChargeRepository
 
     public static function insert(
         string $id,
+        int $warehouseId,
         int $chargeIndex,
         string $title,
         float $amount,
@@ -57,11 +64,12 @@ final class CartChargeRepository
         ?string $info
     ): void {
         $stmt = Database::connection()->prepare(
-            'INSERT INTO cart_charges (id, charge_index, title, amount, min_order_value, info)
-             VALUES (:id, :idx, :title, :amount, :mov, :info)'
+            'INSERT INTO cart_charges (id, warehouse_id, charge_index, title, amount, min_order_value, info)
+             VALUES (:id, :wid, :idx, :title, :amount, :mov, :info)'
         );
         $stmt->execute([
             'id' => $id,
+            'wid' => $warehouseId,
             'idx' => $chargeIndex,
             'title' => $title,
             'amount' => $amount,
@@ -72,6 +80,7 @@ final class CartChargeRepository
 
     public static function update(
         string $id,
+        int $warehouseId,
         ?int $chargeIndex,
         ?string $title,
         ?float $amount,
@@ -105,15 +114,16 @@ final class CartChargeRepository
         if ($sets === []) {
             return;
         }
-        $sql = 'UPDATE cart_charges SET ' . implode(', ', $sets) . ' WHERE id = :id';
+        $params['wid'] = $warehouseId;
+        $sql = 'UPDATE cart_charges SET ' . implode(', ', $sets) . ' WHERE id = :id AND warehouse_id = :wid';
         $stmt = Database::connection()->prepare($sql);
         $stmt->execute($params);
     }
 
-    public static function delete(string $id): bool
+    public static function delete(string $id, int $warehouseId): bool
     {
-        $stmt = Database::connection()->prepare('DELETE FROM cart_charges WHERE id = :id');
-        $stmt->execute(['id' => $id]);
+        $stmt = Database::connection()->prepare('DELETE FROM cart_charges WHERE id = :id AND warehouse_id = :wid');
+        $stmt->execute(['id' => $id, 'wid' => $warehouseId]);
 
         return $stmt->rowCount() > 0;
     }
@@ -125,6 +135,7 @@ final class CartChargeRepository
 
         return [
             'id' => (string) $row['id'],
+            'warehouse_id' => (int) ($row['warehouse_id'] ?? 0),
             'index' => (int) $row['charge_index'],
             'title' => (string) $row['title'],
             'amount' => (float) $row['amount'],

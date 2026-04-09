@@ -3,6 +3,24 @@
 
 PRAGMA foreign_keys = ON;
 
+-- ---------------------------------------------------------------------------
+-- Commerce (subset)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS cart_charges (
+  id TEXT PRIMARY KEY,
+  warehouse_id INTEGER NOT NULL DEFAULT 0,
+  charge_index INTEGER NOT NULL DEFAULT 0,
+  title TEXT NOT NULL,
+  amount REAL NOT NULL,
+  min_order_value REAL NULL,
+  info TEXT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_cart_charges_index ON cart_charges(charge_index);
+CREATE INDEX IF NOT EXISTS idx_cart_charges_warehouse ON cart_charges(warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_cart_charges_wh_index ON cart_charges(warehouse_id, charge_index);
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   phone TEXT NOT NULL,
@@ -132,6 +150,7 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_status TEXT NOT NULL DEFAULT 'pending',
   grand_total REAL NOT NULL DEFAULT 0,
   currency TEXT NOT NULL DEFAULT 'INR',
+  stock_deducted_at TEXT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

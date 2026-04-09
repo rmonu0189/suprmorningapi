@@ -6,6 +6,7 @@ namespace App\Repositories;
 
 use App\Core\Database;
 use App\Core\Uuid;
+use App\Core\Exceptions\HttpException;
 use PDOException;
 use PDO;
 
@@ -477,11 +478,15 @@ final class OrderRepository
         $pdo->beginTransaction();
         try {
             $prevStatus = null;
+            $prevDeductedAt = null;
             if ($orderStatusProvided) {
-                $stmtPrev = $pdo->prepare('SELECT order_status FROM orders WHERE id = :id LIMIT 1');
+                $stmtPrev = $pdo->prepare('SELECT order_status, stock_deducted_at FROM orders WHERE id = :id LIMIT 1');
                 $stmtPrev->execute(['id' => $orderId]);
-                $v = $stmtPrev->fetchColumn();
-                $prevStatus = is_string($v) ? $v : null;
+                $row = $stmtPrev->fetch(PDO::FETCH_ASSOC);
+                if (is_array($row)) {
+                    $prevStatus = isset($row['order_status']) && is_string($row['order_status']) ? $row['order_status'] : null;
+                    $prevDeductedAt = $row['stock_deducted_at'] ?? null;
+                }
             }
 
             $sets = [];
@@ -515,6 +520,11 @@ final class OrderRepository
                         'note' => null,
                     ]);
                 }
+
+                // When order is marked packed, deduct stock once (idempotent).
+                if ($newStatus === 'packed' && ($prevDeductedAt === null || $prevDeductedAt === '')) {
+                    self::deductInventoryForPackedOrder($pdo, $orderId, $changedByUserId);
+                }
             }
 
             $pdo->commit();
@@ -524,6 +534,71 @@ final class OrderRepository
             }
             throw $e;
         }
+    }
+
+    private static function deductInventoryForPackedOrder(PDO $pdo, string $orderId, ?string $changedByUserId): void
+    {
+        // Load warehouse_id (0 for legacy bucket).
+        $stmtO = $pdo->prepare('SELECT warehouse_id, stock_deducted_at FROM orders WHERE id = :id LIMIT 1');
+        $stmtO->execute(['id' => $orderId]);
+        $o = $stmtO->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($o)) {
+            throw new HttpException('Order not found', 404);
+        }
+        if (isset($o['stock_deducted_at']) && $o['stock_deducted_at'] !== null && $o['stock_deducted_at'] !== '') {
+            return; // already deducted
+        }
+        $wid = isset($o['warehouse_id']) && $o['warehouse_id'] !== null && $o['warehouse_id'] !== '' ? (int) $o['warehouse_id'] : 0;
+
+        // Aggregate quantities by variant_id via sku join (order_items doesn't store variant_id).
+        $stmtItems = $pdo->prepare(
+            'SELECT v.id AS variant_id, SUM(oi.quantity) AS qty
+             FROM order_items oi
+             INNER JOIN variants v ON v.sku = oi.sku
+             WHERE oi.order_id = :oid
+             GROUP BY v.id'
+        );
+        $stmtItems->execute(['oid' => $orderId]);
+        $rows = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows) || $rows === []) {
+            return;
+        }
+
+        // Deduct each variant atomically with a non-negative guard.
+        $stmtUpd = $pdo->prepare(
+            'UPDATE inventory
+             SET quantity = quantity - :q1
+             WHERE warehouse_id = :wid AND variant_id = :vid AND quantity >= :q2'
+        );
+        $stmtMove = $pdo->prepare(
+            'INSERT INTO inventory_movements (id, warehouse_id, variant_id, delta_quantity, note, created_by)
+             VALUES (:id, :wid, :vid, :dq, :note, :cb)'
+        );
+        foreach ($rows as $r) {
+            if (!is_array($r)) continue;
+            $vid = (string) ($r['variant_id'] ?? '');
+            $qty = (int) ($r['qty'] ?? 0);
+            if ($vid === '' || $qty <= 0) continue;
+
+            $stmtUpd->execute(['q1' => $qty, 'q2' => $qty, 'wid' => $wid, 'vid' => $vid]);
+            if ($stmtUpd->rowCount() < 1) {
+                throw new HttpException('Insufficient inventory to pack this order', 409, [
+                    'errors' => ['inventory' => 'Insufficient inventory to pack this order.'],
+                ]);
+            }
+            $stmtMove->execute([
+                'id' => Uuid::v4(),
+                'wid' => $wid,
+                'vid' => $vid,
+                'dq' => -$qty,
+                'note' => 'Deducted for packed order ' . $orderId,
+                'cb' => $changedByUserId,
+            ]);
+        }
+
+        // Mark order as deducted.
+        $stmtMark = $pdo->prepare('UPDATE orders SET stock_deducted_at = CURRENT_TIMESTAMP WHERE id = :id AND stock_deducted_at IS NULL');
+        $stmtMark->execute(['id' => $orderId]);
     }
 
     /**

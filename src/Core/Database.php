@@ -219,6 +219,8 @@ final class Database
         self::ensureSqliteColumn($pdo, 'users', 'country_code', 'TEXT', "'+91'");
         $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_users_country_phone ON users(country_code, phone)');
 
+        self::ensureSqliteColumn($pdo, 'orders', 'stock_deducted_at', 'TEXT', 'NULL');
+
         self::ensureSqliteColumn($pdo, 'products', 'brand_id', 'TEXT', "''");
         self::ensureSqliteColumn($pdo, 'products', 'category_id', 'TEXT', 'NULL');
         self::ensureSqliteColumn($pdo, 'products', 'subcategory_id', 'TEXT', 'NULL');

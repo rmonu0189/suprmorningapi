@@ -15,6 +15,7 @@ use App\Repositories\CatalogRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
 use App\Repositories\WarehouseRepository;
+use App\Core\Env;
 use DateTimeImmutable;
 use PDOException;
 
@@ -162,6 +163,13 @@ final class OrderPlacementService
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
+            self::logOrderPlacementError($e);
+            if (strtolower(trim((string) Env::get('APP_DEBUG', 'false'))) === 'true') {
+                throw new HttpException(
+                    'Could not create order: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
+                    500
+                );
+            }
             throw new HttpException('Could not create order', 500);
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
@@ -169,6 +177,13 @@ final class OrderPlacementService
             }
             if ($e instanceof HttpException || $e instanceof ValidationException) {
                 throw $e;
+            }
+            self::logOrderPlacementError($e);
+            if (strtolower(trim((string) Env::get('APP_DEBUG', 'false'))) === 'true') {
+                throw new HttpException(
+                    'Could not create order: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
+                    500
+                );
             }
             throw new HttpException('Could not create order', 500);
         }
@@ -178,6 +193,23 @@ final class OrderPlacementService
             'razorpayResponse' => $razorpay,
             'razonpayResponse' => $razorpay,
         ];
+    }
+
+    private static function logOrderPlacementError(\Throwable $e): void
+    {
+        $logDir = __DIR__ . '/../../storage/logs';
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        $line = sprintf(
+            "[%s] %s: %s in %s:%d\n",
+            gmdate('c'),
+            $e::class,
+            $e->getMessage(),
+            $e->getFile(),
+            $e->getLine()
+        );
+        @error_log($line, 3, $logDir . '/app.log');
     }
 
     /**

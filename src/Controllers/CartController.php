@@ -18,7 +18,12 @@ final class CartController
 {
     public function charges(Request $request): void
     {
-        Response::json(['charges' => CartChargeRepository::findAllOrdered()]);
+        $warehouseId = 0;
+        $widParam = $request->query('warehouse_id');
+        if ($widParam !== null && trim((string) $widParam) !== '' && preg_match('/^\d+$/', trim((string) $widParam))) {
+            $warehouseId = (int) trim((string) $widParam);
+        }
+        Response::json(['charges' => CartChargeRepository::findAllOrdered($warehouseId)]);
     }
 
     public function show(Request $request): void

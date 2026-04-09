@@ -80,7 +80,8 @@ final class VariantsController
         if ($claims === null) {
             return;
         }
-        if (((string) ($claims['role'] ?? '')) === 'manager') {
+        $role = (string) ($claims['role'] ?? '');
+        if ($role === 'manager' || $role === 'staff') {
             Response::json(['error' => 'Forbidden'], 403);
             return;
         }
@@ -170,7 +171,8 @@ final class VariantsController
         if ($claims === null) {
             return;
         }
-        if (((string) ($claims['role'] ?? '')) === 'manager') {
+        $role = (string) ($claims['role'] ?? '');
+        if ($role === 'manager' || $role === 'staff') {
             Response::json(['error' => 'Forbidden'], 403);
             return;
         }
@@ -305,7 +307,8 @@ final class VariantsController
         if ($claims === null) {
             return;
         }
-        if (((string) ($claims['role'] ?? '')) === 'manager') {
+        $role = (string) ($claims['role'] ?? '');
+        if ($role === 'manager' || $role === 'staff') {
             Response::json(['error' => 'Forbidden'], 403);
             return;
         }

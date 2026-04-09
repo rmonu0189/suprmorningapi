@@ -224,13 +224,16 @@ CREATE TABLE IF NOT EXISTS cart_items (
 
 CREATE TABLE IF NOT EXISTS cart_charges (
     id CHAR(36) NOT NULL,
+    warehouse_id INT NOT NULL DEFAULT 0,
     charge_index INT NOT NULL DEFAULT 0,
     title VARCHAR(255) NOT NULL,
     amount DECIMAL(12, 2) NOT NULL,
     min_order_value DECIMAL(12, 2) NULL,
     info TEXT NULL,
     PRIMARY KEY (id),
-    KEY idx_cart_charges_index (charge_index)
+    KEY idx_cart_charges_index (charge_index),
+    KEY idx_cart_charges_warehouse (warehouse_id),
+    KEY idx_cart_charges_wh_index (warehouse_id, charge_index)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
@@ -368,6 +371,7 @@ CREATE TABLE IF NOT EXISTS orders (
     gateway_name VARCHAR(64) NULL DEFAULT 'razorpay',
     charges_metadata JSON NULL,
     delivered_at DATETIME NULL,
+    stock_deducted_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -458,5 +462,5 @@ CREATE TABLE IF NOT EXISTS payment_events (
     KEY idx_payment_events_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT IGNORE INTO cart_charges (id, charge_index, title, amount, min_order_value, info)
-VALUES ('00000000-0000-4000-8000-000000000001', 0, 'Delivery', 40.00, NULL, NULL);
+INSERT IGNORE INTO cart_charges (id, warehouse_id, charge_index, title, amount, min_order_value, info)
+VALUES ('00000000-0000-4000-8000-000000000001', 0, 0, 'Delivery', 40.00, NULL, NULL);

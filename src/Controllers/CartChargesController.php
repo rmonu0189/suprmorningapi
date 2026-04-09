@@ -12,6 +12,7 @@ use App\Core\Uuid;
 use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\CartChargeRepository;
+use App\Repositories\UserRepository;
 use PDOException;
 
 final class CartChargesController
@@ -19,21 +20,63 @@ final class CartChargesController
     /** Admin list (same shape as GET /v1/cart/charges). */
     public function adminIndex(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
-        Response::json(['charges' => CartChargeRepository::findAllOrdered()]);
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        $warehouseId = 0;
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
+            $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+            if ($wid === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            $warehouseId = $wid;
+        } else {
+            $widParam = $request->query('warehouse_id');
+            if ($widParam !== null && trim((string) $widParam) !== '' && preg_match('/^\d+$/', trim((string) $widParam))) {
+                $warehouseId = (int) trim((string) $widParam);
+            }
+        }
+
+        Response::json(['charges' => CartChargeRepository::findAllOrdered($warehouseId)]);
     }
 
     public function create(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
         Validator::requireJsonContentType($request);
         $body = $request->json();
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        $warehouseId = 0;
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
+            $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+            if ($wid === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            $warehouseId = $wid;
+        } else {
+            if (array_key_exists('warehouse_id', $body)) {
+                $raw = $body['warehouse_id'];
+                if (is_int($raw)) {
+                    $warehouseId = $raw;
+                } elseif (is_string($raw) && preg_match('/^\d+$/', $raw)) {
+                    $warehouseId = (int) $raw;
+                } else {
+                    throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Must be an integer.']);
+                }
+            }
+        }
 
         $title = trim((string) ($body['title'] ?? ''));
         if ($title === '') {
@@ -54,12 +97,12 @@ final class CartChargesController
         $id = Uuid::v4();
 
         try {
-            CartChargeRepository::insert($id, $chargeIndex, $title, $amount, $minOrderValue, $info);
+            CartChargeRepository::insert($id, $warehouseId, $chargeIndex, $title, $amount, $minOrderValue, $info);
         } catch (PDOException $e) {
             throw new HttpException('Could not create charge', 500);
         }
 
-        $row = CartChargeRepository::findById($id);
+        $row = CartChargeRepository::findById($id, $warehouseId);
         if ($row === null) {
             throw new HttpException('Could not create charge', 500);
         }
@@ -69,19 +112,48 @@ final class CartChargesController
 
     public function update(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
         Validator::requireJsonContentType($request);
         $body = $request->json();
 
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        $warehouseId = 0;
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
+            $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+            if ($wid === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            $warehouseId = $wid;
+        } else {
+            if (array_key_exists('warehouse_id', $body)) {
+                $raw = $body['warehouse_id'];
+                if (is_int($raw)) {
+                    $warehouseId = $raw;
+                } elseif (is_string($raw) && preg_match('/^\d+$/', $raw)) {
+                    $warehouseId = (int) $raw;
+                } else {
+                    throw new ValidationException('Invalid warehouse_id', ['warehouse_id' => 'Must be an integer.']);
+                }
+            } else {
+                $widParam = $request->query('warehouse_id');
+                if ($widParam !== null && trim((string) $widParam) !== '' && preg_match('/^\d+$/', trim((string) $widParam))) {
+                    $warehouseId = (int) trim((string) $widParam);
+                }
+            }
+        }
+
         $id = trim((string) ($body['id'] ?? ''));
         if ($id === '' || !Uuid::isValid($id)) {
             throw new ValidationException('Invalid id', ['id' => 'A valid UUID is required.']);
         }
 
-        if (CartChargeRepository::findById($id) === null) {
+        if (CartChargeRepository::findById($id, $warehouseId) === null) {
             Response::json(['error' => 'Not Found'], 404);
             return;
         }
@@ -124,6 +196,7 @@ final class CartChargesController
         try {
             CartChargeRepository::update(
                 $id,
+                $warehouseId,
                 $chargeIndex,
                 $title,
                 $amount,
@@ -136,7 +209,7 @@ final class CartChargesController
             throw new HttpException('Could not update charge', 500);
         }
 
-        $row = CartChargeRepository::findById($id);
+        $row = CartChargeRepository::findById($id, $warehouseId);
         if ($row === null) {
             Response::json(['error' => 'Not Found'], 404);
             return;
@@ -147,8 +220,26 @@ final class CartChargesController
 
     public function delete(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
+        }
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        $warehouseId = 0;
+        if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
+            $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+            if ($wid === null) {
+                Response::json(['error' => 'Forbidden'], 403);
+                return;
+            }
+            $warehouseId = $wid;
+        } else {
+            $widParam = $request->query('warehouse_id');
+            if ($widParam !== null && trim((string) $widParam) !== '' && preg_match('/^\d+$/', trim((string) $widParam))) {
+                $warehouseId = (int) trim((string) $widParam);
+            }
         }
 
         $id = trim((string) ($request->query('id') ?? ''));
@@ -162,12 +253,12 @@ final class CartChargesController
             return;
         }
 
-        if (CartChargeRepository::findById($id) === null) {
+        if (CartChargeRepository::findById($id, $warehouseId) === null) {
             Response::json(['error' => 'Not Found'], 404);
             return;
         }
 
-        if (!CartChargeRepository::delete($id)) {
+        if (!CartChargeRepository::delete($id, $warehouseId)) {
             Response::json(['error' => 'Not Found'], 404);
             return;
         }

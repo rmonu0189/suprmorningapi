@@ -83,10 +83,10 @@ final class WarehouseRepository
             'SELECT id
              FROM warehouses
              WHERE status = 1
-             ORDER BY ((latitude - :lat) * (latitude - :lat) + (longitude - :lng) * (longitude - :lng)) ASC, id ASC
+             ORDER BY ((latitude - :lat1) * (latitude - :lat2) + (longitude - :lng1) * (longitude - :lng2)) ASC, id ASC
              LIMIT 1'
         );
-        $stmt->execute(['lat' => $lat, 'lng' => $lng]);
+        $stmt->execute(['lat1' => $lat, 'lat2' => $lat, 'lng1' => $lng, 'lng2' => $lng]);
         $v = $stmt->fetchColumn();
         if ($v === false || $v === null || $v === '') {
             return null;

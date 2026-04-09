@@ -116,9 +116,18 @@ final class AdminUsersController
         if ($role === 'manager' && $sub !== '') {
             $wid = UserRepository::findWarehouseId($sub);
             $userWid = $user['warehouse_id'] ?? null;
-            if ($wid === null || $userWid === null || (int) $userWid !== (int) $wid) {
+            $targetRole = trim((string) ($user['role'] ?? UserRepository::DEFAULT_ROLE));
+            if ($wid === null) {
                 Response::json(['error' => 'Not Found'], 404);
                 return;
+            }
+
+            // Allow managers to find role=user accounts (typically warehouse_id NULL) for promotion.
+            if ($targetRole !== UserRepository::DEFAULT_ROLE) {
+                if ($userWid === null || (int) $userWid !== (int) $wid) {
+                    Response::json(['error' => 'Not Found'], 404);
+                    return;
+                }
             }
         }
 
