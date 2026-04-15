@@ -23,7 +23,11 @@ final class AdminDeliveryController
         }
 
         $deliveryDate = trim((string) ($request->query('delivery_date') ?? ''));
+        $deliveryDateFrom = trim((string) ($request->query('delivery_date_from') ?? ''));
+        $deliveryDateTo = trim((string) ($request->query('delivery_date_to') ?? ''));
         $deliveryDateYmd = null;
+        $deliveryDateFromYmd = null;
+        $deliveryDateToYmd = null;
         if ($deliveryDate !== '') {
             $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $deliveryDate);
             if ($dt === false || $dt->format('Y-m-d') !== $deliveryDate) {
@@ -31,6 +35,29 @@ final class AdminDeliveryController
                 return;
             }
             $deliveryDateYmd = $dt->format('Y-m-d');
+        }
+        if ($deliveryDateFrom !== '') {
+            $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $deliveryDateFrom);
+            if ($dt === false || $dt->format('Y-m-d') !== $deliveryDateFrom) {
+                Response::json(['error' => 'Invalid delivery_date_from', 'errors' => ['delivery_date_from' => 'Use YYYY-MM-DD.']], 422);
+                return;
+            }
+            $deliveryDateFromYmd = $dt->format('Y-m-d');
+        }
+        if ($deliveryDateTo !== '') {
+            $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $deliveryDateTo);
+            if ($dt === false || $dt->format('Y-m-d') !== $deliveryDateTo) {
+                Response::json(['error' => 'Invalid delivery_date_to', 'errors' => ['delivery_date_to' => 'Use YYYY-MM-DD.']], 422);
+                return;
+            }
+            $deliveryDateToYmd = $dt->format('Y-m-d');
+        }
+        if ($deliveryDateFromYmd !== null && $deliveryDateToYmd !== null && $deliveryDateFromYmd > $deliveryDateToYmd) {
+            Response::json([
+                'error' => 'Invalid delivery date range',
+                'errors' => ['delivery_date_from' => 'Must be less than or equal to delivery_date_to.'],
+            ], 422);
+            return;
         }
 
         $statusParam = trim((string) ($request->query('order_status') ?? ''));
@@ -50,7 +77,14 @@ final class AdminDeliveryController
             $warehouseId = UserRepository::findWarehouseId($sub);
         }
 
-        $orders = OrderRepository::findDeliverableOrdersForAdmin($deliveryDateYmd, $orderStatuses, $includeDelivered, $warehouseId);
+        $orders = OrderRepository::findDeliverableOrdersForAdmin(
+            $deliveryDateYmd,
+            $orderStatuses,
+            $includeDelivered,
+            $warehouseId,
+            $deliveryDateFromYmd,
+            $deliveryDateToYmd
+        );
         $items = OrderRepository::findOrderItemsForOrdersWithVariantId(array_map(static fn ($o) => (string) ($o['id'] ?? ''), $orders));
 
         // Aggregate items by variant (prefer variant_id, fallback to sku key).

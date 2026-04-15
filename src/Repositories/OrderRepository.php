@@ -609,7 +609,14 @@ final class OrderRepository
      * @param list<string>|null $orderStatuses
      * @return list<array<string, mixed>>
      */
-    public static function findDeliverableOrdersForAdmin(?string $deliveryDateYmd, ?array $orderStatuses, bool $includeDelivered, ?int $warehouseId = null): array
+    public static function findDeliverableOrdersForAdmin(
+        ?string $deliveryDateYmd,
+        ?array $orderStatuses,
+        bool $includeDelivered,
+        ?int $warehouseId = null,
+        ?string $deliveryDateFromYmd = null,
+        ?string $deliveryDateToYmd = null
+    ): array
     {
         $where = ['1=1'];
         $params = [];
@@ -618,7 +625,17 @@ final class OrderRepository
         $where[] = 'o.payment_status = :ps';
         $params['ps'] = 'success';
 
-        if ($deliveryDateYmd !== null && $deliveryDateYmd !== '') {
+        if ($deliveryDateFromYmd !== null && $deliveryDateFromYmd !== '' && $deliveryDateToYmd !== null && $deliveryDateToYmd !== '') {
+            $where[] = 'o.delivery_date >= :dd_from AND o.delivery_date <= :dd_to';
+            $params['dd_from'] = $deliveryDateFromYmd;
+            $params['dd_to'] = $deliveryDateToYmd;
+        } elseif ($deliveryDateFromYmd !== null && $deliveryDateFromYmd !== '') {
+            $where[] = 'o.delivery_date >= :dd_from';
+            $params['dd_from'] = $deliveryDateFromYmd;
+        } elseif ($deliveryDateToYmd !== null && $deliveryDateToYmd !== '') {
+            $where[] = 'o.delivery_date <= :dd_to';
+            $params['dd_to'] = $deliveryDateToYmd;
+        } elseif ($deliveryDateYmd !== null && $deliveryDateYmd !== '') {
             $where[] = 'o.delivery_date = :dd';
             $params['dd'] = $deliveryDateYmd;
         }
