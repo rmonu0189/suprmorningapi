@@ -33,6 +33,7 @@ use App\Controllers\SubcategoriesController;
 use App\Controllers\SubscriptionController;
 use App\Controllers\AdminSubscriptionsController;
 use App\Controllers\AdminSubscriptionOrdersController;
+use App\Controllers\ServiceabilityController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
 require_once __DIR__ . '/../Controllers/AdminDeliveryController.php';
@@ -60,6 +61,7 @@ require_once __DIR__ . '/../Controllers/SubcategoriesController.php';
 require_once __DIR__ . '/../Controllers/SubscriptionController.php';
 require_once __DIR__ . '/../Controllers/AdminSubscriptionsController.php';
 require_once __DIR__ . '/../Controllers/AdminSubscriptionOrdersController.php';
+require_once __DIR__ . '/../Controllers/ServiceabilityController.php';
 require_once __DIR__ . '/../Controllers/PagesController.php';
 require_once __DIR__ . '/../Controllers/RazorpayWebhookController.php';
 require_once __DIR__ . '/../Controllers/VariantsController.php';
@@ -156,6 +158,7 @@ final class App
         $adminSubscriptions = new AdminSubscriptionsController();
         $adminSubscriptionOrders = new AdminSubscriptionOrdersController();
         $razorpayHook = new RazorpayWebhookController();
+        $serviceability = new ServiceabilityController();
 
         $router->add('GET', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
             $brands->index($r);
@@ -314,6 +317,10 @@ final class App
         });
         $router->add('POST', self::API_PREFIX . '/addresses/default-latest', static function (Request $r) use ($addresses): void {
             $addresses->setDefaultLatest($r);
+        });
+
+        $router->add('GET', self::API_PREFIX . '/serviceability', static function (Request $r) use ($serviceability): void {
+            $serviceability->show($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/loves', static function (Request $r) use ($loves): void {

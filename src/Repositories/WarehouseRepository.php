@@ -25,6 +25,7 @@ final class WarehouseRepository
      *   postal_code: string,
      *   latitude: float,
      *   longitude: float,
+ *   radius_km: float,
      *   status: bool
      * }>
      */
@@ -32,7 +33,7 @@ final class WarehouseRepository
     {
         $stmt = Database::connection()->query(
             'SELECT id, uuid, created_at, name, address_line_1, address_line_2, area, city, state, country, postal_code,
-                    latitude, longitude, status
+                    latitude, longitude, radius_km, status
              FROM warehouses
              ORDER BY status DESC, id ASC'
         );
@@ -53,7 +54,7 @@ final class WarehouseRepository
     {
         $stmt = Database::connection()->prepare(
             'SELECT id, uuid, created_at, name, address_line_1, address_line_2, area, city, state, country, postal_code,
-                    latitude, longitude, status
+                    latitude, longitude, radius_km, status
              FROM warehouses WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
@@ -66,7 +67,7 @@ final class WarehouseRepository
     {
         $stmt = Database::connection()->prepare(
             'SELECT id, uuid, created_at, name, address_line_1, address_line_2, area, city, state, country, postal_code,
-                    latitude, longitude, status
+                    latitude, longitude, radius_km, status
              FROM warehouses WHERE name = :name LIMIT 1'
         );
         $stmt->execute(['name' => $name]);
@@ -105,12 +106,13 @@ final class WarehouseRepository
         string $postalCode,
         float $latitude,
         float $longitude,
+        float $radiusKm,
         bool $status
     ): int {
         $uuid = Uuid::v4();
         $stmt = Database::connection()->prepare(
-            'INSERT INTO warehouses (uuid, name, address_line_1, address_line_2, area, city, state, country, postal_code, latitude, longitude, status)
-             VALUES (:uuid, :name, :a1, :a2, :area, :city, :st, :ctry, :pc, :lat, :lng, :status)'
+            'INSERT INTO warehouses (uuid, name, address_line_1, address_line_2, area, city, state, country, postal_code, latitude, longitude, radius_km, status)
+             VALUES (:uuid, :name, :a1, :a2, :area, :city, :st, :ctry, :pc, :lat, :lng, :rkm, :status)'
         );
         $stmt->execute([
             'uuid' => $uuid,
@@ -124,6 +126,7 @@ final class WarehouseRepository
             'pc' => $postalCode,
             'lat' => $latitude,
             'lng' => $longitude,
+            'rkm' => $radiusKm,
             'status' => $status ? 1 : 0,
         ]);
         return (int) Database::connection()->lastInsertId();
@@ -143,6 +146,7 @@ final class WarehouseRepository
         ?string $postalCode,
         ?float $latitude,
         ?float $longitude,
+        ?float $radiusKm,
         ?bool $status
     ): void {
         $sets = [];
@@ -188,6 +192,10 @@ final class WarehouseRepository
             $sets[] = 'longitude = :lng';
             $params['lng'] = $longitude;
         }
+        if ($radiusKm !== null) {
+            $sets[] = 'radius_km = :rkm';
+            $params['rkm'] = $radiusKm;
+        }
         if ($status !== null) {
             $sets[] = 'status = :status';
             $params['status'] = $status ? 1 : 0;
@@ -230,6 +238,7 @@ final class WarehouseRepository
             'postal_code' => (string) $row['postal_code'],
             'latitude' => isset($row['latitude']) ? (float) $row['latitude'] : 0.0,
             'longitude' => isset($row['longitude']) ? (float) $row['longitude'] : 0.0,
+            'radius_km' => isset($row['radius_km']) ? (float) $row['radius_km'] : 0.0,
             'status' => (bool) (int) $row['status'],
         ];
     }

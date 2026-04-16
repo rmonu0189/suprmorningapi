@@ -295,6 +295,7 @@ CREATE TABLE IF NOT EXISTS warehouses (
     postal_code VARCHAR(32) NOT NULL,
     latitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
     longitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
+    radius_km DECIMAL(10, 2) NOT NULL DEFAULT 5.00
     status TINYINT(1) NOT NULL DEFAULT 1,
     PRIMARY KEY (id),
     UNIQUE KEY uq_warehouses_uuid (uuid),

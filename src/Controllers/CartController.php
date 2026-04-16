@@ -10,19 +10,40 @@ use App\Core\Response;
 use App\Core\Uuid;
 use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
+use App\Repositories\AddressRepository;
 use App\Repositories\CartChargeRepository;
 use App\Repositories\CartRepository;
 use App\Repositories\CatalogRepository;
+use App\Repositories\WarehouseRepository;
 
 final class CartController
 {
     public function charges(Request $request): void
     {
-        $warehouseId = 0;
-        $widParam = $request->query('warehouse_id');
-        if ($widParam !== null && trim((string) $widParam) !== '' && preg_match('/^\d+$/', trim((string) $widParam))) {
-            $warehouseId = (int) trim((string) $widParam);
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
         }
+
+        $userId = (string) ($claims['sub'] ?? '');
+        if ($userId === '') {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $warehouseId = 0;
+        $address = AddressRepository::findFirstByUserId($userId);
+        if ($address !== null) {
+            $lat = isset($address['latitude']) ? (float) $address['latitude'] : 0.0;
+            $lng = isset($address['longitude']) ? (float) $address['longitude'] : 0.0;
+            if ($lat != 0.0 || $lng != 0.0) {
+                $nearestId = WarehouseRepository::findNearestEnabledId($lat, $lng);
+                if ($nearestId !== null) {
+                    $warehouseId = $nearestId;
+                }
+            }
+        }
+
         Response::json(['charges' => CartChargeRepository::findAllOrdered($warehouseId)]);
     }
 

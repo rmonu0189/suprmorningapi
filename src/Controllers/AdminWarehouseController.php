@@ -80,6 +80,10 @@ final class AdminWarehouseController
         $area = self::optionalNullableString($body, 'area');
         $latitude = self::optionalFloat($body, 'latitude', 0.0);
         $longitude = self::optionalFloat($body, 'longitude', 0.0);
+        $radiusKm = self::optionalFloat($body, 'radius_km', 5.0);
+        if ($radiusKm < 0) {
+            throw new ValidationException('Invalid radius_km', ['radius_km' => 'Must be >= 0.']);
+        }
 
         $status = true;
         if (array_key_exists('status', $body)) {
@@ -93,7 +97,7 @@ final class AdminWarehouseController
         }
 
         try {
-            $id = WarehouseRepository::insert($name, $a1, $a2, $area, $city, $state, $country, $postalCode, $latitude, $longitude, $status);
+            $id = WarehouseRepository::insert($name, $a1, $a2, $area, $city, $state, $country, $postalCode, $latitude, $longitude, $radiusKm, $status);
         } catch (PDOException $e) {
             throw new HttpException('Could not create warehouse', 500);
         }
@@ -185,6 +189,13 @@ final class AdminWarehouseController
         if (array_key_exists('longitude', $body)) {
             $longitude = self::parseFloatValue($body['longitude'], 'longitude');
         }
+        $radiusKm = null;
+        if (array_key_exists('radius_km', $body)) {
+            $radiusKm = self::parseFloatValue($body['radius_km'], 'radius_km');
+            if ($radiusKm < 0) {
+                throw new ValidationException('Invalid radius_km', ['radius_km' => 'Must be >= 0.']);
+            }
+        }
 
         $status = null;
         if (array_key_exists('status', $body)) {
@@ -194,7 +205,7 @@ final class AdminWarehouseController
         if (
             $name === null && $a1 === null && !$a2Provided && !$areaProvided &&
             $city === null && $state === null && $country === null && $postalCode === null &&
-            $latitude === null && $longitude === null && $status === null
+            $latitude === null && $longitude === null && $radiusKm === null && $status === null
         ) {
             throw new ValidationException('Nothing to update', [
                 'body' => 'Provide at least one field to update.',
@@ -216,6 +227,7 @@ final class AdminWarehouseController
                 $postalCode,
                 $latitude,
                 $longitude,
+                $radiusKm,
                 $status
             );
         } catch (PDOException $e) {
