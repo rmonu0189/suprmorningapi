@@ -156,6 +156,23 @@ CREATE TABLE IF NOT EXISTS orders (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  variant_id TEXT NOT NULL,
+  frequency TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  weekly_schedule TEXT NULL,
+  start_date TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (variant_id) REFERENCES variants(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_created ON subscriptions(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_variant_created ON subscriptions(variant_id, created_at);
+
 -- Seed an admin user for local OTP login (OTP_TEST_PHONES includes 919109322140).
 INSERT OR IGNORE INTO users (id, phone, country_code, email, full_name, is_active, role)
 VALUES ('00000000-0000-4000-8000-000000000001', '9109322140', '+91', 'admin@local.test', 'Local Admin', 1, 'admin');

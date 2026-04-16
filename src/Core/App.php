@@ -29,6 +29,8 @@ use App\Controllers\RazorpayWebhookController;
 use App\Controllers\VariantsController;
 use App\Controllers\CategoriesController;
 use App\Controllers\SubcategoriesController;
+use App\Controllers\SubscriptionController;
+use App\Controllers\AdminSubscriptionsController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
 require_once __DIR__ . '/../Controllers/AdminDeliveryController.php';
@@ -52,6 +54,8 @@ require_once __DIR__ . '/../Controllers/OrderController.php';
 require_once __DIR__ . '/../Controllers/ProductsController.php';
 require_once __DIR__ . '/../Controllers/CategoriesController.php';
 require_once __DIR__ . '/../Controllers/SubcategoriesController.php';
+require_once __DIR__ . '/../Controllers/SubscriptionController.php';
+require_once __DIR__ . '/../Controllers/AdminSubscriptionsController.php';
 require_once __DIR__ . '/../Controllers/PagesController.php';
 require_once __DIR__ . '/../Controllers/RazorpayWebhookController.php';
 require_once __DIR__ . '/../Controllers/VariantsController.php';
@@ -96,6 +100,7 @@ require_once __DIR__ . '/../Repositories/PaymentRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentEventRepository.php';
 require_once __DIR__ . '/../Repositories/CouponRepository.php';
 require_once __DIR__ . '/../Repositories/FileRepository.php';
+require_once __DIR__ . '/../Repositories/SubscriptionRepository.php';
 require_once __DIR__ . '/../Services/RazorpayService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
 
@@ -140,6 +145,8 @@ final class App
         $inventory = new InventoryController();
         $inventoryMovements = new InventoryMovementsController();
         $coupons = new CouponsController();
+        $subscriptions = new SubscriptionController();
+        $adminSubscriptions = new AdminSubscriptionsController();
         $razorpayHook = new RazorpayWebhookController();
 
         $router->add('GET', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
@@ -333,6 +340,9 @@ final class App
         $router->add('GET', self::API_PREFIX . '/orders/payment-status', static function (Request $r) use ($orders): void {
             $orders->paymentStatus($r);
         });
+        $router->add('POST', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
+            $subscriptions->create($r);
+        });
 
         $router->add('GET', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->index($r);
@@ -380,6 +390,9 @@ final class App
         });
         $router->add('PATCH', self::API_PREFIX . '/admin/users/role', static function (Request $r) use ($adminUsers): void {
             $adminUsers->updateRole($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/admin/subscriptions', static function (Request $r) use ($adminSubscriptions): void {
+            $adminSubscriptions->index($r);
         });
         $router->add('POST', self::API_PREFIX . '/admin/uploads', static function (Request $r) use ($adminUploads): void {
             $adminUploads->upload($r);
