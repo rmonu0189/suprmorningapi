@@ -173,6 +173,35 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_created ON subscriptions(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_variant_created ON subscriptions(variant_id, created_at);
 
+CREATE TABLE IF NOT EXISTS order_item_ratings (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  order_id TEXT NOT NULL,
+  order_item_id TEXT NOT NULL,
+  rating INTEGER NOT NULL,
+  feedback TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, order_item_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS order_delivery_ratings (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  order_id TEXT NOT NULL,
+  delivery_partner_user_id TEXT NULL,
+  rating INTEGER NOT NULL,
+  feedback TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, order_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (delivery_partner_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Seed an admin user for local OTP login (OTP_TEST_PHONES includes 919109322140).
 INSERT OR IGNORE INTO users (id, phone, country_code, email, full_name, is_active, role)
 VALUES ('00000000-0000-4000-8000-000000000001', '9109322140', '+91', 'admin@local.test', 'Local Admin', 1, 'admin');

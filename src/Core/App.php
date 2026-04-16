@@ -23,6 +23,7 @@ use App\Controllers\InventoryController;
 use App\Controllers\InventoryMovementsController;
 use App\Controllers\LoveController;
 use App\Controllers\OrderController;
+use App\Controllers\OrderRatingController;
 use App\Controllers\PagesController;
 use App\Controllers\ProductsController;
 use App\Controllers\RazorpayWebhookController;
@@ -51,6 +52,7 @@ require_once __DIR__ . '/../Controllers/InventoryController.php';
 require_once __DIR__ . '/../Controllers/InventoryMovementsController.php';
 require_once __DIR__ . '/../Controllers/LoveController.php';
 require_once __DIR__ . '/../Controllers/OrderController.php';
+require_once __DIR__ . '/../Controllers/OrderRatingController.php';
 require_once __DIR__ . '/../Controllers/ProductsController.php';
 require_once __DIR__ . '/../Controllers/CategoriesController.php';
 require_once __DIR__ . '/../Controllers/SubcategoriesController.php';
@@ -130,6 +132,7 @@ final class App
         $loves = new LoveController();
         $catalog = new CatalogController();
         $orders = new OrderController();
+        $orderRatings = new OrderRatingController();
         $adminOrders = new AdminOrderController();
         $adminDelivery = new AdminDeliveryController();
         $adminAnalytics = new AdminAnalyticsController();
@@ -339,6 +342,12 @@ final class App
         });
         $router->add('GET', self::API_PREFIX . '/orders/payment-status', static function (Request $r) use ($orders): void {
             $orders->paymentStatus($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/orders/ratings', static function (Request $r) use ($orderRatings): void {
+            $orderRatings->byOrder($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/orders/ratings', static function (Request $r) use ($orderRatings): void {
+            $orderRatings->save($r);
         });
         $router->add('GET', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
             $subscriptions->index($r);
