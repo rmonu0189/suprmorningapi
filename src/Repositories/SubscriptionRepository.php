@@ -43,6 +43,74 @@ final class SubscriptionRepository
         return $v === false ? 0 : (int) $v;
     }
 
+    /** @return array<string, mixed>|null */
+    public static function findByIdForUser(string $id, string $userId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT s.id, s.user_id, s.variant_id, s.frequency, s.quantity, s.weekly_schedule, s.start_date, s.created_at,
+                    u.phone AS user_phone, u.email AS user_email, u.full_name AS user_full_name,
+                    p.name AS product_name, v.name AS variant_label, v.sku AS variant_sku
+             FROM subscriptions s
+             LEFT JOIN users u ON u.id = s.user_id
+             LEFT JOIN variants v ON v.id = s.variant_id
+             LEFT JOIN products p ON p.id = v.product_id
+             WHERE s.id = :id AND s.user_id = :uid
+             LIMIT 1'
+        );
+        $stmt->execute(['id' => $id, 'uid' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) return null;
+        return self::normalizeRow($row);
+    }
+
+    /** @return array<string, mixed>|null */
+    public static function findLatestByUserAndVariant(string $userId, string $variantId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT s.id, s.user_id, s.variant_id, s.frequency, s.quantity, s.weekly_schedule, s.start_date, s.created_at,
+                    u.phone AS user_phone, u.email AS user_email, u.full_name AS user_full_name,
+                    p.name AS product_name, v.name AS variant_label, v.sku AS variant_sku
+             FROM subscriptions s
+             LEFT JOIN users u ON u.id = s.user_id
+             LEFT JOIN variants v ON v.id = s.variant_id
+             LEFT JOIN products p ON p.id = v.product_id
+             WHERE s.user_id = :uid AND s.variant_id = :vid
+             ORDER BY s.created_at DESC, s.id DESC
+             LIMIT 1'
+        );
+        $stmt->execute(['uid' => $userId, 'vid' => $variantId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) return null;
+        return self::normalizeRow($row);
+    }
+
+    /**
+     * @param list<array{day:int, quantity:int}>|null $weeklySchedule
+     */
+    public static function updateByIdForUser(
+        string $id,
+        string $userId,
+        string $frequency,
+        int $quantity,
+        ?array $weeklySchedule,
+        string $startDate
+    ): bool {
+        $stmt = Database::connection()->prepare(
+            'UPDATE subscriptions
+             SET frequency = :freq, quantity = :qty, weekly_schedule = :sched, start_date = :start_date
+             WHERE id = :id AND user_id = :uid'
+        );
+        $stmt->execute([
+            'id' => $id,
+            'uid' => $userId,
+            'freq' => $frequency,
+            'qty' => $quantity,
+            'sched' => $weeklySchedule === null ? null : json_encode($weeklySchedule, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'start_date' => $startDate,
+        ]);
+        return $stmt->rowCount() > 0;
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

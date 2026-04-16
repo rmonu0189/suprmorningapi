@@ -343,6 +343,12 @@ final class App
         $router->add('POST', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
             $subscriptions->create($r);
         });
+        $router->add('GET', self::API_PREFIX . '/subscriptions/by-variant', static function (Request $r) use ($subscriptions): void {
+            $subscriptions->byVariant($r);
+        });
+        $router->add('PUT', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
+            $subscriptions->update($r);
+        });
 
         $router->add('GET', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->index($r);
