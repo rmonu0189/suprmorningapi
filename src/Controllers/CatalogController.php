@@ -79,9 +79,25 @@ final class CatalogController
             return;
         }
 
-        $categoryId = trim((string) ($request->query('category_id') ?? ''));
+        // Support both snake_case and camelCase, plus query/id based target routing.
+        $categoryId = trim((string) ($request->query('category_id') ?? $request->query('categoryId') ?? ''));
+        if ($categoryId === '') {
+            $queryKey = trim((string) ($request->query('query') ?? ''));
+            $queryValue = trim((string) ($request->query('id') ?? ''));
+            if (($queryKey === 'category_id' || $queryKey === 'categoryId') && $queryValue !== '') {
+                $categoryId = $queryValue;
+            }
+        }
+
+        // Listing is category-scoped only: no category means empty result.
+        if ($categoryId === '') {
+            Response::json(['variants' => []]);
+            return;
+        }
+
+        // For invalid category filter, return empty results instead of full listing.
         if ($categoryId !== '' && !Uuid::isValid($categoryId)) {
-            Response::json(['error' => 'Invalid category_id'], 422);
+            Response::json(['variants' => []]);
             return;
         }
 
