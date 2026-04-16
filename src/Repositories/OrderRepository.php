@@ -181,6 +181,25 @@ final class OrderRepository
         ]);
     }
 
+    public static function subscriptionOrderExistsForUserOnDate(string $userId, string $deliveryDateYmd): bool
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT 1
+             FROM orders
+             WHERE user_id = :uid
+               AND delivery_date = :dd
+               AND gateway_order_id LIKE :go_like
+             LIMIT 1'
+        );
+        $stmt->execute([
+            'uid' => $userId,
+            'dd' => $deliveryDateYmd,
+            'go_like' => 'sub_%',
+        ]);
+        $v = $stmt->fetchColumn();
+        return $v !== false;
+    }
+
     public static function updateWarehouseId(string $orderId, ?int $warehouseId): void
     {
         $stmt = Database::connection()->prepare(

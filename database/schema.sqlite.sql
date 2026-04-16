@@ -173,6 +173,24 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_created ON subscriptions(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_variant_created ON subscriptions(variant_id, created_at);
 
+-- Admin-triggered subscription order generation progress per user.
+CREATE TABLE IF NOT EXISTS subscription_order_generation (
+  delivery_date TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  order_id TEXT NULL,
+  error TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (delivery_date, user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sog_delivery_status ON subscription_order_generation(delivery_date, status);
+CREATE INDEX IF NOT EXISTS idx_sog_run ON subscription_order_generation(run_id);
+
 CREATE TABLE IF NOT EXISTS order_item_ratings (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,

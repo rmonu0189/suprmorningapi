@@ -32,6 +32,7 @@ use App\Controllers\CategoriesController;
 use App\Controllers\SubcategoriesController;
 use App\Controllers\SubscriptionController;
 use App\Controllers\AdminSubscriptionsController;
+use App\Controllers\AdminSubscriptionOrdersController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
 require_once __DIR__ . '/../Controllers/AdminDeliveryController.php';
@@ -58,6 +59,7 @@ require_once __DIR__ . '/../Controllers/CategoriesController.php';
 require_once __DIR__ . '/../Controllers/SubcategoriesController.php';
 require_once __DIR__ . '/../Controllers/SubscriptionController.php';
 require_once __DIR__ . '/../Controllers/AdminSubscriptionsController.php';
+require_once __DIR__ . '/../Controllers/AdminSubscriptionOrdersController.php';
 require_once __DIR__ . '/../Controllers/PagesController.php';
 require_once __DIR__ . '/../Controllers/RazorpayWebhookController.php';
 require_once __DIR__ . '/../Controllers/VariantsController.php';
@@ -103,8 +105,10 @@ require_once __DIR__ . '/../Repositories/PaymentEventRepository.php';
 require_once __DIR__ . '/../Repositories/CouponRepository.php';
 require_once __DIR__ . '/../Repositories/FileRepository.php';
 require_once __DIR__ . '/../Repositories/SubscriptionRepository.php';
+require_once __DIR__ . '/../Repositories/SubscriptionOrderGenerationRepository.php';
 require_once __DIR__ . '/../Services/RazorpayService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
+require_once __DIR__ . '/../Services/SubscriptionOrderGenerator.php';
 
 final class App
 {
@@ -150,6 +154,7 @@ final class App
         $coupons = new CouponsController();
         $subscriptions = new SubscriptionController();
         $adminSubscriptions = new AdminSubscriptionsController();
+        $adminSubscriptionOrders = new AdminSubscriptionOrdersController();
         $razorpayHook = new RazorpayWebhookController();
 
         $router->add('GET', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
@@ -414,6 +419,15 @@ final class App
         });
         $router->add('GET', self::API_PREFIX . '/admin/subscriptions', static function (Request $r) use ($adminSubscriptions): void {
             $adminSubscriptions->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/admin/subscriptions/generate-orders/start', static function (Request $r) use ($adminSubscriptionOrders): void {
+            $adminSubscriptionOrders->start($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/admin/subscriptions/generate-orders/process', static function (Request $r) use ($adminSubscriptionOrders): void {
+            $adminSubscriptionOrders->process($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/admin/subscriptions/generate-orders/status', static function (Request $r) use ($adminSubscriptionOrders): void {
+            $adminSubscriptionOrders->status($r);
         });
         $router->add('POST', self::API_PREFIX . '/admin/uploads', static function (Request $r) use ($adminUploads): void {
             $adminUploads->upload($r);

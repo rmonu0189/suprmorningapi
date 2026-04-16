@@ -170,7 +170,7 @@ final class CatalogRepository
      * Batch load variant + product + brand for order line items (single query).
      *
      * @param list<string> $variantIds
-     * @return array<string, array{product_id: string, image: string, brand_name: string, product_name: string, variant_name: string, sku: string}>
+     * @return array<string, array{product_id: string, image: string, brand_name: string, product_name: string, variant_name: string, sku: string, price: float, mrp: float}>
      */
     public static function snapshotVariantsForOrder(array $variantIds): array
     {
@@ -181,7 +181,7 @@ final class CatalogRepository
 
         $placeholders = implode(',', array_fill(0, count($variantIds), '?'));
         $stmt = Database::connection()->prepare(
-            "SELECT v.id AS variant_id, v.product_id, v.name AS vname, v.sku, v.images,
+            "SELECT v.id AS variant_id, v.product_id, v.name AS vname, v.sku, v.images, v.price, v.mrp,
                     p.name AS pname, b.name AS bname
              FROM variants v
              INNER JOIN products p ON p.id = v.product_id
@@ -208,6 +208,8 @@ final class CatalogRepository
                 'product_name' => (string) $row['pname'],
                 'variant_name' => (string) $row['vname'],
                 'sku' => (string) $row['sku'],
+                'price' => (float) ($row['price'] ?? 0),
+                'mrp' => (float) ($row['mrp'] ?? 0),
             ];
         }
 

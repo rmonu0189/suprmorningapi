@@ -29,8 +29,21 @@ final class AdminSubscriptionsController
         $limit = min(100, max(1, (int) ($request->query('limit') ?? '20')));
         $offset = $page * $limit;
 
-        $rows = SubscriptionRepository::findAllPaged($offset, $limit);
-        $total = SubscriptionRepository::countAll();
+        $userIds = SubscriptionRepository::findDistinctUserIdsPaged($offset, $limit);
+        $rows = [];
+        foreach ($userIds as $uid) {
+            $subs = SubscriptionRepository::findAllByUser($uid);
+            $user = null;
+            if (isset($subs[0]) && is_array($subs[0]) && isset($subs[0]['user']) && is_array($subs[0]['user'])) {
+                $user = $subs[0]['user'];
+            }
+            $rows[] = [
+                'user_id' => $uid,
+                'user' => $user,
+                'subscriptions' => $subs,
+            ];
+        }
+        $total = SubscriptionRepository::countDistinctUsers();
 
         Response::json([
             'subscriptions' => $rows,

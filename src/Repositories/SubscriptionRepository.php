@@ -43,6 +43,42 @@ final class SubscriptionRepository
         return $v === false ? 0 : (int) $v;
     }
 
+    public static function countDistinctUsers(): int
+    {
+        $stmt = Database::connection()->query('SELECT COUNT(DISTINCT user_id) FROM subscriptions');
+        $v = $stmt->fetchColumn();
+        return $v === false ? 0 : (int) $v;
+    }
+
+    /**
+     * Returns the user ids ordered by latest subscription created_at.
+     *
+     * @return list<string>
+     */
+    public static function findDistinctUserIdsPaged(int $offset, int $limit): array
+    {
+        $sql = 'SELECT s.user_id AS user_id, MAX(s.created_at) AS last_created
+                FROM subscriptions s
+                GROUP BY s.user_id
+                ORDER BY last_created DESC, s.user_id DESC
+                LIMIT :lim OFFSET :off';
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) continue;
+            if (!isset($row['user_id'])) continue;
+            $out[] = (string) $row['user_id'];
+        }
+        return $out;
+    }
+
     /** @return array<string, mixed>|null */
     public static function findByIdForUser(string $id, string $userId): ?array
     {

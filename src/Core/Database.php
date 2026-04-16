@@ -215,6 +215,23 @@ final class Database
             )"
         );
 
+        // Admin-triggered subscription order generation progress.
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS subscription_order_generation (
+                delivery_date TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                order_id TEXT NULL,
+                error TEXT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (delivery_date, user_id)
+            )"
+        );
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sog_delivery_status ON subscription_order_generation(delivery_date, status)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_sog_run ON subscription_order_generation(run_id)");
+
         // If the DB existed with older minimal tables, ensure required columns exist.
         self::ensureSqliteColumn($pdo, 'users', 'country_code', 'TEXT', "'+91'");
         $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_users_country_phone ON users(country_code, phone)');
