@@ -10,6 +10,48 @@ use PDO;
 final class CatalogRepository
 {
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function findListingVariants(?string $categoryId = null): array
+    {
+        $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images,
+                       v.status, v.discount_tag,
+                       p.id AS product_table_id, p.name AS product_name, p.description AS product_description,
+                       p.status AS product_status,
+                       b.id AS brand_id_val, b.name AS brand_name, b.about AS brand_about, b.logo AS brand_logo, b.status AS brand_status,
+                       i.quantity AS inv_quantity, i.reserved_quantity AS inv_reserved
+                FROM variants v
+                INNER JOIN products p ON p.id = v.product_id
+                INNER JOIN brands b ON b.id = p.brand_id
+                LEFT JOIN inventory i ON i.variant_id = v.id
+                WHERE v.status = 1 AND p.status = 1 AND b.status = 1';
+
+        $params = [];
+        if ($categoryId !== null && $categoryId !== '') {
+            $sql .= ' AND p.category_id = :categoryId';
+            $params['categoryId'] = $categoryId;
+        }
+
+        $sql .= ' ORDER BY p.name ASC, v.name ASC, v.id ASC';
+
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = self::shapeVariantRow($row);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * @return array<string, mixed>|null variant row + products + brands + inventory + images as array
      */
     public static function findVariantDetail(string $variantId): ?array

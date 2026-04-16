@@ -339,6 +339,9 @@ final class App
         $router->add('GET', self::API_PREFIX . '/catalog/variant-detail', static function (Request $r) use ($catalog): void {
             $catalog->variantDetail($r);
         });
+        $router->add('GET', self::API_PREFIX . '/catalog/products', static function (Request $r) use ($catalog): void {
+            $catalog->products($r);
+        });
 
         $router->add('POST', self::API_PREFIX . '/orders/place', static function (Request $r) use ($orders): void {
             $orders->place($r);

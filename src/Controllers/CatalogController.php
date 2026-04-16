@@ -71,4 +71,22 @@ final class CatalogController
             'totalCartCount' => $totalCartCount,
         ]);
     }
+
+    /** PLP aggregate: active variants, optionally filtered by category */
+    public function products(Request $request): void
+    {
+        if (AuthMiddleware::requireAuth($request) === null) {
+            return;
+        }
+
+        $categoryId = trim((string) ($request->query('category_id') ?? ''));
+        if ($categoryId !== '' && !Uuid::isValid($categoryId)) {
+            Response::json(['error' => 'Invalid category_id'], 422);
+            return;
+        }
+
+        Response::json([
+            'variants' => CatalogRepository::findListingVariants($categoryId === '' ? null : $categoryId),
+        ]);
+    }
 }
