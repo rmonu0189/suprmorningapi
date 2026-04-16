@@ -941,6 +941,12 @@ final class OrderRepository
         $deliveryDateStr = $deliveryDate !== null && $deliveryDate !== '' ? (string) $deliveryDate : '';
 
         $deliveredAt = $r['delivered_at'] ?? null;
+        $statusChangedAt = self::findLatestStatusChangedAtForOrder(
+            (string) $r['id'],
+            (string) $r['order_status'],
+            (string) $r['created_at']
+        );
+        $deliveryAgent = self::findLatestOutForDeliveryAgent((string) $r['id']);
 
         return [
             'id' => (string) $r['id'],
@@ -968,8 +974,61 @@ final class OrderRepository
             'gateway_name' => $r['gateway_name'] !== null && $r['gateway_name'] !== '' ? (string) $r['gateway_name'] : null,
             'order_items' => $orderItems,
             'created_at' => (string) $r['created_at'],
+            'status_changed_at' => $statusChangedAt,
             'delivered_at' => $deliveredAt !== null && $deliveredAt !== '' ? (string) $deliveredAt : null,
+            'delivery_agent' => $deliveryAgent,
             'charges_metadata' => $chargesMeta,
+        ];
+    }
+
+    private static function findLatestStatusChangedAtForOrder(string $orderId, string $status, string $fallbackCreatedAt): string
+    {
+        $st = trim($status);
+        if ($st === '') {
+            return $fallbackCreatedAt;
+        }
+        $stmt = Database::connection()->prepare(
+            'SELECT created_at
+             FROM order_status_events
+             WHERE order_id = :oid AND status = :st
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1'
+        );
+        $stmt->execute([
+            'oid' => $orderId,
+            'st' => $st,
+        ]);
+        $at = $stmt->fetchColumn();
+        if (!is_string($at) || trim($at) === '') {
+            return $fallbackCreatedAt;
+        }
+        return $at;
+    }
+
+    /**
+     * @return array{id:string, full_name:string|null, phone:string|null}|null
+     */
+    private static function findLatestOutForDeliveryAgent(string $orderId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT u.id, u.full_name, u.phone
+             FROM order_status_events e
+             LEFT JOIN users u ON u.id = e.changed_by
+             WHERE e.order_id = :oid
+               AND e.status IN (\'out_for_delivery\', \'out for delivery\')
+               AND e.changed_by IS NOT NULL
+             ORDER BY e.created_at DESC, e.id DESC
+             LIMIT 1'
+        );
+        $stmt->execute(['oid' => $orderId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row) || !isset($row['id']) || !is_string($row['id']) || $row['id'] === '') {
+            return null;
+        }
+        return [
+            'id' => (string) $row['id'],
+            'full_name' => isset($row['full_name']) && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
+            'phone' => isset($row['phone']) && $row['phone'] !== '' ? (string) $row['phone'] : null,
         ];
     }
 }
