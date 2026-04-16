@@ -36,6 +36,13 @@ final class AddressRepository
     }
 
     /** @return array<string, mixed>|null */
+    public static function findFirstByUserId(string $userId): ?array
+    {
+        $rows = self::findByUserId($userId);
+        return $rows[0] ?? null;
+    }
+
+    /** @return array<string, mixed>|null */
     public static function findByIdForUser(string $id, string $userId): ?array
     {
         $stmt = Database::connection()->prepare(

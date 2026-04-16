@@ -34,6 +34,41 @@ final class AddressController
         Validator::requireJsonContentType($request);
         $body = $request->json();
         $row = self::parseAddressBody($body, false);
+
+        $existing = AddressRepository::findFirstByUserId($userId);
+        if ($existing !== null) {
+            $existingId = (string) ($existing['id'] ?? '');
+            if ($existingId === '' || !Uuid::isValid($existingId)) {
+                Response::json(['error' => 'Invalid existing address state'], 500);
+                return;
+            }
+
+            if ($row['is_default']) {
+                AddressRepository::clearDefaultForUserExcept($userId, $existingId);
+            }
+
+            AddressRepository::updateForUser(
+                $existingId,
+                $userId,
+                $row['label'],
+                $row['recipient_name'],
+                $row['phone'],
+                $row['address_line_1'],
+                $row['address_line_2'],
+                $row['area'],
+                $row['city'],
+                $row['state'],
+                $row['country'],
+                $row['postal_code'],
+                $row['latitude'],
+                $row['longitude'],
+                $row['is_default']
+            );
+
+            Response::json(['address' => AddressRepository::findByIdForUser($existingId, $userId)]);
+            return;
+        }
+
         $id = Uuid::v4();
 
         if ($row['is_default']) {
