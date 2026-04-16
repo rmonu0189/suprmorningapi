@@ -257,6 +257,18 @@ final class OrderRepository
         $stmt->execute(['go' => $gatewayOrderId, 'id' => $orderId]);
     }
 
+    public static function updateOrderKind(string $orderId, string $orderKind): void
+    {
+        $kind = strtolower(trim($orderKind));
+        if ($kind === '') {
+            $kind = 'user';
+        }
+        $stmt = Database::connection()->prepare(
+            'UPDATE orders SET order_kind = :k WHERE id = :id'
+        );
+        $stmt->execute(['k' => $kind, 'id' => $orderId]);
+    }
+
     public static function updatePaymentStatusByGatewayOrderId(string $gatewayOrderId, string $paymentStatus): bool
     {
         $stmt = Database::connection()->prepare(

@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_status TEXT NOT NULL DEFAULT 'pending',
   grand_total REAL NOT NULL DEFAULT 0,
   currency TEXT NOT NULL DEFAULT 'INR',
+  order_kind TEXT NOT NULL DEFAULT 'user',
   stock_deducted_at TEXT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,

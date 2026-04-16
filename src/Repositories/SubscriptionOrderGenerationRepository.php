@@ -200,22 +200,41 @@ final class SubscriptionOrderGenerationRepository
     }
 
     /**
-     * @return list<array{user_id: string, status: string, order_id: string|null, error: string|null, updated_at: string}>
+     * @return list<array{user_id: string, status: string, order_id: string|null, order_kind: string|null, error: string|null, updated_at: string}>
      */
     public static function listRecent(string $deliveryDateYmd, int $limit = 200): array
     {
         $limit = max(1, min(500, $limit));
-        $stmt = Database::connection()->prepare(
-            'SELECT user_id, status, order_id, error, updated_at
-             FROM subscription_order_generation
-             WHERE delivery_date = :dd
-             ORDER BY updated_at DESC, user_id DESC
-             LIMIT :lim'
-        );
-        $stmt->bindValue('dd', $deliveryDateYmd, PDO::PARAM_STR);
-        $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $pdo = Database::connection();
+        $rows = null;
+        try {
+            // Newer schema: orders.order_kind exists.
+            $stmt = $pdo->prepare(
+                'SELECT g.user_id, g.status, g.order_id, o.order_kind AS order_kind, g.error, g.updated_at
+                 FROM subscription_order_generation g
+                 LEFT JOIN orders o ON o.id = g.order_id
+                 WHERE g.delivery_date = :dd
+                 ORDER BY g.updated_at DESC, g.user_id DESC
+                 LIMIT :lim'
+            );
+            $stmt->bindValue('dd', $deliveryDateYmd, PDO::PARAM_STR);
+            $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            // Backward-compatible fallback: orders.order_kind not present yet.
+            $stmt = $pdo->prepare(
+                'SELECT g.user_id, g.status, g.order_id, NULL AS order_kind, g.error, g.updated_at
+                 FROM subscription_order_generation g
+                 WHERE g.delivery_date = :dd
+                 ORDER BY g.updated_at DESC, g.user_id DESC
+                 LIMIT :lim'
+            );
+            $stmt->bindValue('dd', $deliveryDateYmd, PDO::PARAM_STR);
+            $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
         if (!is_array($rows)) return [];
         $out = [];
         foreach ($rows as $r) {
@@ -224,6 +243,7 @@ final class SubscriptionOrderGenerationRepository
                 'user_id' => (string) ($r['user_id'] ?? ''),
                 'status' => (string) ($r['status'] ?? ''),
                 'order_id' => isset($r['order_id']) && $r['order_id'] !== '' ? (string) $r['order_id'] : null,
+                'order_kind' => isset($r['order_kind']) && $r['order_kind'] !== '' ? (string) $r['order_kind'] : null,
                 'error' => isset($r['error']) && $r['error'] !== '' ? (string) $r['error'] : null,
                 'updated_at' => (string) ($r['updated_at'] ?? ''),
             ];

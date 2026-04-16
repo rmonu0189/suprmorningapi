@@ -282,6 +282,7 @@ final class SubscriptionOrderGenerator
                 'razorpay',
                 $otherChargesValue !== [] ? $otherChargesValue : null
             );
+            OrderRepository::updateOrderKind($orderId, 'subscription');
 
             foreach ($lineItems as $li) {
                 OrderRepository::insertOrderItem(
