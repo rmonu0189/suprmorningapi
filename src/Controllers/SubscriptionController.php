@@ -15,6 +15,23 @@ use App\Repositories\VariantRepository;
 
 final class SubscriptionController
 {
+    /** GET /v1/subscriptions */
+    public function index(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        if ($userId === '' || !Uuid::isValid($userId)) {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $rows = SubscriptionRepository::findAllByUser($userId);
+        Response::json(['subscriptions' => $rows]);
+    }
+
     /** GET /v1/subscriptions/by-variant?variant_id=... */
     public function byVariant(Request $request): void
     {
@@ -179,5 +196,32 @@ final class SubscriptionController
         SubscriptionRepository::updateByIdForUser($id, $userId, $frequency, $qty, $weekly, $startDate);
         $updated = SubscriptionRepository::findByIdForUser($id, $userId);
         Response::json(['subscription' => $updated]);
+    }
+
+    /** DELETE /v1/subscriptions?id=... */
+    public function cancel(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        if ($userId === '' || !Uuid::isValid($userId)) {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $id = trim((string) ($request->query('id') ?? ''));
+        if ($id === '' || !Uuid::isValid($id)) {
+            throw new ValidationException('Invalid id', ['id' => 'A valid UUID is required.']);
+        }
+
+        $ok = SubscriptionRepository::deleteByIdForUser($id, $userId);
+        if (!$ok) {
+            Response::json(['error' => 'Not Found'], 404);
+            return;
+        }
+
+        Response::json(['ok' => true]);
     }
 }

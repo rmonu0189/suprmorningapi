@@ -49,11 +49,12 @@ final class SubscriptionRepository
         $stmt = Database::connection()->prepare(
             'SELECT s.id, s.user_id, s.variant_id, s.frequency, s.quantity, s.weekly_schedule, s.start_date, s.created_at,
                     u.phone AS user_phone, u.email AS user_email, u.full_name AS user_full_name,
-                    p.name AS product_name, v.name AS variant_label, v.sku AS variant_sku
+                    p.name AS product_name, b.name AS brand_name, v.name AS variant_label, v.sku AS variant_sku, v.images AS variant_images, v.price AS variant_price, v.mrp AS variant_mrp
              FROM subscriptions s
              LEFT JOIN users u ON u.id = s.user_id
              LEFT JOIN variants v ON v.id = s.variant_id
              LEFT JOIN products p ON p.id = v.product_id
+             LEFT JOIN brands b ON b.id = p.brand_id
              WHERE s.id = :id AND s.user_id = :uid
              LIMIT 1'
         );
@@ -69,11 +70,12 @@ final class SubscriptionRepository
         $stmt = Database::connection()->prepare(
             'SELECT s.id, s.user_id, s.variant_id, s.frequency, s.quantity, s.weekly_schedule, s.start_date, s.created_at,
                     u.phone AS user_phone, u.email AS user_email, u.full_name AS user_full_name,
-                    p.name AS product_name, v.name AS variant_label, v.sku AS variant_sku
+                    p.name AS product_name, b.name AS brand_name, v.name AS variant_label, v.sku AS variant_sku, v.images AS variant_images, v.price AS variant_price, v.mrp AS variant_mrp
              FROM subscriptions s
              LEFT JOIN users u ON u.id = s.user_id
              LEFT JOIN variants v ON v.id = s.variant_id
              LEFT JOIN products p ON p.id = v.product_id
+             LEFT JOIN brands b ON b.id = p.brand_id
              WHERE s.user_id = :uid AND s.variant_id = :vid
              ORDER BY s.created_at DESC, s.id DESC
              LIMIT 1'
@@ -114,15 +116,58 @@ final class SubscriptionRepository
     /**
      * @return list<array<string, mixed>>
      */
+    public static function findAllByUser(string $userId): array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT s.id, s.user_id, s.variant_id, s.frequency, s.quantity, s.weekly_schedule, s.start_date, s.created_at,
+                    u.phone AS user_phone, u.email AS user_email, u.full_name AS user_full_name,
+                    p.name AS product_name, b.name AS brand_name, v.name AS variant_label, v.sku AS variant_sku, v.images AS variant_images, v.price AS variant_price, v.mrp AS variant_mrp
+             FROM subscriptions s
+             LEFT JOIN users u ON u.id = s.user_id
+             LEFT JOIN variants v ON v.id = s.variant_id
+             LEFT JOIN products p ON p.id = v.product_id
+             LEFT JOIN brands b ON b.id = p.brand_id
+             WHERE s.user_id = :uid
+             ORDER BY s.created_at DESC, s.id DESC'
+        );
+        $stmt->execute(['uid' => $userId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $out[] = self::normalizeRow($row);
+        }
+        return $out;
+    }
+
+    public static function deleteByIdForUser(string $id, string $userId): bool
+    {
+        $stmt = Database::connection()->prepare('DELETE FROM subscriptions WHERE id = :id AND user_id = :uid');
+        $stmt->execute([
+            'id' => $id,
+            'uid' => $userId,
+        ]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public static function findAllPaged(int $offset, int $limit): array
     {
         $sql = 'SELECT s.id, s.user_id, s.variant_id, s.frequency, s.quantity, s.weekly_schedule, s.start_date, s.created_at,
                        u.phone AS user_phone, u.email AS user_email, u.full_name AS user_full_name,
-                       p.name AS product_name, v.name AS variant_label, v.sku AS variant_sku
+                       p.name AS product_name, b.name AS brand_name, v.name AS variant_label, v.sku AS variant_sku, v.images AS variant_images, v.price AS variant_price, v.mrp AS variant_mrp
                 FROM subscriptions s
                 LEFT JOIN users u ON u.id = s.user_id
                 LEFT JOIN variants v ON v.id = s.variant_id
                 LEFT JOIN products p ON p.id = v.product_id
+                LEFT JOIN brands b ON b.id = p.brand_id
                 ORDER BY s.created_at DESC, s.id DESC
                 LIMIT :lim OFFSET :off';
         $stmt = Database::connection()->prepare($sql);
@@ -166,6 +211,15 @@ final class SubscriptionRepository
             }
         }
 
+        $variantImage = null;
+        $rawVariantImages = $row['variant_images'] ?? null;
+        if (is_string($rawVariantImages) && $rawVariantImages !== '') {
+            $decodedImages = json_decode($rawVariantImages, true);
+            if (is_array($decodedImages) && isset($decodedImages[0]) && is_string($decodedImages[0])) {
+                $variantImage = $decodedImages[0];
+            }
+        }
+
         return [
             'id' => (string) $row['id'],
             'user_id' => (string) $row['user_id'],
@@ -181,8 +235,12 @@ final class SubscriptionRepository
                 'full_name' => isset($row['user_full_name']) ? (string) $row['user_full_name'] : null,
             ],
             'product_name' => isset($row['product_name']) ? (string) $row['product_name'] : null,
+            'brand_name' => isset($row['brand_name']) ? (string) $row['brand_name'] : null,
             'variant_label' => isset($row['variant_label']) ? (string) $row['variant_label'] : null,
             'variant_sku' => isset($row['variant_sku']) ? (string) $row['variant_sku'] : null,
+            'variant_image' => $variantImage,
+            'variant_price' => isset($row['variant_price']) ? (float) $row['variant_price'] : null,
+            'variant_mrp' => isset($row['variant_mrp']) ? (float) $row['variant_mrp'] : null,
         ];
     }
 }

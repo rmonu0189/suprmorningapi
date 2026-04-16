@@ -340,6 +340,9 @@ final class App
         $router->add('GET', self::API_PREFIX . '/orders/payment-status', static function (Request $r) use ($orders): void {
             $orders->paymentStatus($r);
         });
+        $router->add('GET', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
+            $subscriptions->index($r);
+        });
         $router->add('POST', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
             $subscriptions->create($r);
         });
@@ -348,6 +351,9 @@ final class App
         });
         $router->add('PUT', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
             $subscriptions->update($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
+            $subscriptions->cancel($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
