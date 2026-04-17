@@ -79,37 +79,55 @@ final class CatalogController
         ]);
     }
 
-    /** PLP aggregate: active variants, optionally filtered by category */
+    /** PLP aggregate: active variants filtered by brand/category/subcategory/product */
     public function products(Request $request): void
     {
         if (AuthMiddleware::requireAuth($request) === null) {
             return;
         }
+        $filters = [
+            'brand_id' => trim((string) ($request->query('brand_id') ?? $request->query('brandId') ?? '')),
+            'category_id' => trim((string) ($request->query('category_id') ?? $request->query('categoryId') ?? '')),
+            'subcategory_id' => trim((string) ($request->query('subcategory_id') ?? $request->query('subcategoryId') ?? $request->query('subCategoryId') ?? '')),
+            'product_id' => trim((string) ($request->query('product_id') ?? $request->query('productId') ?? '')),
+        ];
 
-        // Support both snake_case and camelCase, plus query/id based target routing.
-        $categoryId = trim((string) ($request->query('category_id') ?? $request->query('categoryId') ?? ''));
-        if ($categoryId === '') {
-            $queryKey = trim((string) ($request->query('query') ?? ''));
-            $queryValue = trim((string) ($request->query('id') ?? ''));
-            if (($queryKey === 'category_id' || $queryKey === 'categoryId') && $queryValue !== '') {
-                $categoryId = $queryValue;
+        // Support target-driven routing where query contains filter key and id carries value.
+        $queryKey = trim((string) ($request->query('query') ?? ''));
+        $queryValue = trim((string) ($request->query('id') ?? ''));
+        if ($queryKey !== '' && $queryValue !== '') {
+            if ($queryKey === 'brand_id' || $queryKey === 'brandId') {
+                $filters['brand_id'] = $queryValue;
+            } elseif ($queryKey === 'category_id' || $queryKey === 'categoryId') {
+                $filters['category_id'] = $queryValue;
+            } elseif ($queryKey === 'subcategory_id' || $queryKey === 'subcategoryId' || $queryKey === 'subCategoryId') {
+                $filters['subcategory_id'] = $queryValue;
+            } elseif ($queryKey === 'product_id' || $queryKey === 'productId') {
+                $filters['product_id'] = $queryValue;
             }
         }
 
-        // Listing is category-scoped only: no category means empty result.
-        if ($categoryId === '') {
+        $hasAtLeastOneFilter = false;
+        foreach ($filters as $value) {
+            if ($value !== '') {
+                $hasAtLeastOneFilter = true;
+                break;
+            }
+        }
+        if (!$hasAtLeastOneFilter) {
             Response::json(['variants' => []]);
             return;
         }
 
-        // For invalid category filter, return empty results instead of full listing.
-        if ($categoryId !== '' && !Uuid::isValid($categoryId)) {
-            Response::json(['variants' => []]);
-            return;
+        foreach ($filters as $value) {
+            if ($value !== '' && !Uuid::isValid($value)) {
+                Response::json(['variants' => []]);
+                return;
+            }
         }
 
         Response::json([
-            'variants' => CatalogRepository::findListingVariants($categoryId === '' ? null : $categoryId),
+            'variants' => CatalogRepository::findListingVariants($filters),
         ]);
     }
 }
