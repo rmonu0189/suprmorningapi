@@ -18,6 +18,115 @@ use App\Repositories\WarehouseRepository;
 
 final class CartController
 {
+    /**
+     * @param array<string, mixed>|null $address
+     * @return array{warehouse_id:int,source:string}
+     */
+    private static function resolveChargeWarehouse(?array $address): array
+    {
+        if ($address === null) {
+            return ['warehouse_id' => 0, 'source' => 'default'];
+        }
+
+        $lat = isset($address['latitude']) ? (float) $address['latitude'] : 0.0;
+        $lng = isset($address['longitude']) ? (float) $address['longitude'] : 0.0;
+        if ($lat == 0.0 && $lng == 0.0) {
+            return ['warehouse_id' => 0, 'source' => 'default'];
+        }
+
+        $warehouses = WarehouseRepository::findAll();
+        $nearestInRadiusId = null;
+        $nearestInRadiusDistance = INF;
+        foreach ($warehouses as $wh) {
+            if (!is_array($wh)) continue;
+            $enabled = isset($wh['status']) ? (bool) $wh['status'] : false;
+            if (!$enabled) continue;
+            $whLat = isset($wh['latitude']) ? (float) $wh['latitude'] : 0.0;
+            $whLng = isset($wh['longitude']) ? (float) $wh['longitude'] : 0.0;
+            $whRadius = isset($wh['radius_km']) ? (float) $wh['radius_km'] : 0.0;
+            if ($whRadius <= 0.0) continue;
+            $distance = self::haversineKm($lat, $lng, $whLat, $whLng);
+            if ($distance <= $whRadius && $distance < $nearestInRadiusDistance) {
+                $nearestInRadiusDistance = $distance;
+                $nearestInRadiusId = (int) ($wh['id'] ?? 0);
+            }
+        }
+
+        if ($nearestInRadiusId !== null && $nearestInRadiusId > 0) {
+            return ['warehouse_id' => $nearestInRadiusId, 'source' => 'in_radius'];
+        }
+
+        $nearestId = WarehouseRepository::findNearestEnabledId($lat, $lng);
+        if ($nearestId !== null && $nearestId > 0) {
+            return ['warehouse_id' => $nearestId, 'source' => 'nearest_fallback'];
+        }
+
+        return ['warehouse_id' => 0, 'source' => 'default'];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $cartItems
+     * @param list<array<string,mixed>> $charges
+     * @return array<string,mixed>
+     */
+    private static function buildBillSummary(array $cartItems, array $charges, int $warehouseId, string $source): array
+    {
+        $itemsMrp = 0.0;
+        $itemsPrice = 0.0;
+        foreach ($cartItems as $item) {
+            if (!is_array($item)) continue;
+            $qty = isset($item['quantity']) ? (int) $item['quantity'] : 0;
+            $unitMrp = isset($item['unit_mrp']) ? (float) $item['unit_mrp'] : 0.0;
+            $unitPrice = isset($item['unit_price']) ? (float) $item['unit_price'] : 0.0;
+            $itemsMrp += ($unitMrp * $qty);
+            $itemsPrice += ($unitPrice * $qty);
+        }
+
+        $normalizedCharges = [];
+        $chargesTotal = 0.0;
+        foreach ($charges as $charge) {
+            if (!is_array($charge)) continue;
+            $amount = isset($charge['amount']) ? (float) $charge['amount'] : 0.0;
+            $minOrderValue = isset($charge['min_order_value']) ? $charge['min_order_value'] : null;
+            $threshold = $minOrderValue === null ? null : (float) $minOrderValue;
+            $appliedAmount = $threshold !== null && $itemsPrice >= $threshold ? 0.0 : $amount;
+            $chargesTotal += $appliedAmount;
+            $normalizedCharges[] = [
+                'id' => (string) ($charge['id'] ?? ''),
+                'index' => isset($charge['index']) ? (int) $charge['index'] : 0,
+                'title' => (string) ($charge['title'] ?? ''),
+                'amount' => $amount,
+                'min_order_value' => $threshold,
+                'applied_amount' => $appliedAmount,
+                'info' => isset($charge['info']) && $charge['info'] !== '' ? (string) $charge['info'] : null,
+            ];
+        }
+
+        return [
+            'warehouse_id' => $warehouseId,
+            'warehouse_source' => $source,
+            'items_mrp' => $itemsMrp,
+            'items_price' => $itemsPrice,
+            'coupon_discount' => 0.0,
+            'charges' => $normalizedCharges,
+            'charges_total' => $chargesTotal,
+            'grand_total_price' => $itemsPrice + $chargesTotal,
+            'grand_total_mrp' => $itemsMrp + $chargesTotal,
+        ];
+    }
+
+    private static function haversineKm(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $r = 6371.0;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) * sin($dLat / 2)
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+            * sin($dLon / 2) * sin($dLon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return $r * $c;
+    }
+
     public function charges(Request $request): void
     {
         $claims = AuthMiddleware::requireAuth($request);
@@ -31,18 +140,9 @@ final class CartController
             return;
         }
 
-        $warehouseId = 0;
         $address = AddressRepository::findFirstByUserId($userId);
-        if ($address !== null) {
-            $lat = isset($address['latitude']) ? (float) $address['latitude'] : 0.0;
-            $lng = isset($address['longitude']) ? (float) $address['longitude'] : 0.0;
-            if ($lat != 0.0 || $lng != 0.0) {
-                $nearestId = WarehouseRepository::findNearestEnabledId($lat, $lng);
-                if ($nearestId !== null) {
-                    $warehouseId = $nearestId;
-                }
-            }
-        }
+        $resolved = self::resolveChargeWarehouse($address);
+        $warehouseId = $resolved['warehouse_id'];
 
         Response::json(['charges' => CartChargeRepository::findAllOrdered($warehouseId)]);
     }
@@ -60,6 +160,11 @@ final class CartController
         }
 
         $cart = CartRepository::getOrCreateActiveCartWithItems($userId, Uuid::v4());
+        $address = AddressRepository::findFirstByUserId($userId);
+        $resolved = self::resolveChargeWarehouse($address);
+        $charges = CartChargeRepository::findAllOrdered($resolved['warehouse_id']);
+        $cartItems = isset($cart['cart_items']) && is_array($cart['cart_items']) ? $cart['cart_items'] : [];
+        $cart['bill_summary'] = self::buildBillSummary($cartItems, $charges, $resolved['warehouse_id'], $resolved['source']);
         Response::json(['cart' => $cart]);
     }
 

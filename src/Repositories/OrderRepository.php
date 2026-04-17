@@ -12,6 +12,61 @@ use PDO;
 
 final class OrderRepository
 {
+    /**
+     * @param list<array<string,mixed>>|null $chargesMeta
+     * @return list<array{id:string,index:int,title:string,amount:float,min_order_value:?float,applied_amount:float,info:?string}>
+     */
+    private static function normalizeBillCharges(?array $chargesMeta, float $tax, float $deliveryFee): array
+    {
+        $out = [];
+        if (is_array($chargesMeta)) {
+            foreach ($chargesMeta as $idx => $row) {
+                if (!is_array($row)) continue;
+                $title = isset($row['title']) ? trim((string) $row['title']) : '';
+                if ($title === '') continue;
+                $value = isset($row['value']) ? (float) $row['value'] : 0.0;
+                $out[] = [
+                    'id' => 'order_charge_' . $idx,
+                    'index' => $idx,
+                    'title' => $title,
+                    'amount' => $value,
+                    'min_order_value' => null,
+                    'applied_amount' => $value,
+                    'info' => null,
+                ];
+            }
+        }
+
+        if ($out !== []) {
+            return $out;
+        }
+
+        // Legacy fallback for old orders where charges_metadata was not stored.
+        if ($deliveryFee > 0) {
+            $out[] = [
+                'id' => 'order_charge_delivery',
+                'index' => 0,
+                'title' => 'Delivery charges',
+                'amount' => $deliveryFee,
+                'min_order_value' => null,
+                'applied_amount' => $deliveryFee,
+                'info' => null,
+            ];
+        }
+        if ($tax > 0) {
+            $out[] = [
+                'id' => 'order_charge_tax',
+                'index' => count($out),
+                'title' => 'Tax',
+                'amount' => $tax,
+                'min_order_value' => null,
+                'applied_amount' => $tax,
+                'info' => null,
+            ];
+        }
+        return $out;
+    }
+
     private static function prefixFromIndex(int $idx): string
     {
         // Base-26 (A-Z) into 4 letters. 0 => AAAA, 1 => AAAB, ...
@@ -972,6 +1027,13 @@ final class OrderRepository
         $deliveryDateStr = $deliveryDate !== null && $deliveryDate !== '' ? (string) $deliveryDate : '';
 
         $deliveredAt = $r['delivered_at'] ?? null;
+        $totalMrp = (float) $r['total_mrp'];
+        $totalPrice = (float) $r['total_price'];
+        $totalCharges = (float) $r['total_charges'];
+        $grandTotal = (float) $r['grand_total'];
+        $tax = (float) $r['tax'];
+        $deliveryFee = (float) $r['delivery_fee'];
+        $billCharges = self::normalizeBillCharges($chargesMeta, $tax, $deliveryFee);
         $statusChangedAt = self::findLatestStatusChangedAtForOrder(
             (string) $r['id'],
             (string) $r['order_status'],
@@ -987,10 +1049,10 @@ final class OrderRepository
             'delivery_date' => $deliveryDateStr,
             'delivery_slot' => $r['delivery_slot'] !== null && $r['delivery_slot'] !== '' ? (string) $r['delivery_slot'] : '',
             'delivery_type' => $r['delivery_type'] !== null && $r['delivery_type'] !== '' ? (string) $r['delivery_type'] : '',
-            'total_mrp' => (float) $r['total_mrp'],
-            'tax' => (float) $r['tax'],
-            'delivery_fee' => (float) $r['delivery_fee'],
-            'grand_total' => (float) $r['grand_total'],
+            'total_mrp' => $totalMrp,
+            'tax' => $tax,
+            'delivery_fee' => $deliveryFee,
+            'grand_total' => $grandTotal,
             'currency' => (string) $r['currency'],
             'recipient_name' => (string) $r['recipient_name'],
             'recipient_phone' => (string) $r['recipient_phone'],
@@ -999,8 +1061,8 @@ final class OrderRepository
             'state' => (string) $r['state'],
             'country' => (string) $r['country'],
             'postal_code' => (string) $r['postal_code'],
-            'total_price' => (float) $r['total_price'],
-            'total_charges' => (float) $r['total_charges'],
+            'total_price' => $totalPrice,
+            'total_charges' => $totalCharges,
             'gateway_order_id' => $r['gateway_order_id'] !== null && $r['gateway_order_id'] !== '' ? (string) $r['gateway_order_id'] : null,
             'gateway_name' => $r['gateway_name'] !== null && $r['gateway_name'] !== '' ? (string) $r['gateway_name'] : null,
             'order_items' => $orderItems,
@@ -1009,6 +1071,19 @@ final class OrderRepository
             'delivered_at' => $deliveredAt !== null && $deliveredAt !== '' ? (string) $deliveredAt : null,
             'delivery_agent' => $deliveryAgent,
             'charges_metadata' => $chargesMeta,
+            'bill_summary' => [
+                'warehouse_id' => isset($r['warehouse_id']) && $r['warehouse_id'] !== null && $r['warehouse_id'] !== ''
+                    ? (int) $r['warehouse_id']
+                    : 0,
+                'warehouse_source' => 'order_snapshot',
+                'items_mrp' => $totalMrp,
+                'items_price' => $totalPrice,
+                'coupon_discount' => 0.0,
+                'charges' => $billCharges,
+                'charges_total' => $totalCharges,
+                'grand_total_price' => $grandTotal,
+                'grand_total_mrp' => $totalMrp + $totalCharges,
+            ],
         ];
     }
 

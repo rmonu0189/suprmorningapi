@@ -21,6 +21,64 @@ use PDOException;
 
 final class OrderPlacementService
 {
+    /**
+     * @param array<string, mixed>|null $address
+     * @return array{warehouse_id:int,source:string}
+     */
+    private static function resolveChargeWarehouse(?array $address): array
+    {
+        if ($address === null) {
+            return ['warehouse_id' => 0, 'source' => 'default'];
+        }
+
+        $lat = isset($address['latitude']) ? (float) $address['latitude'] : 0.0;
+        $lng = isset($address['longitude']) ? (float) $address['longitude'] : 0.0;
+        if ($lat == 0.0 && $lng == 0.0) {
+            return ['warehouse_id' => 0, 'source' => 'default'];
+        }
+
+        $warehouses = WarehouseRepository::findAll();
+        $nearestInRadiusId = null;
+        $nearestInRadiusDistance = INF;
+        foreach ($warehouses as $wh) {
+            if (!is_array($wh)) continue;
+            $enabled = isset($wh['status']) ? (bool) $wh['status'] : false;
+            if (!$enabled) continue;
+            $whLat = isset($wh['latitude']) ? (float) $wh['latitude'] : 0.0;
+            $whLng = isset($wh['longitude']) ? (float) $wh['longitude'] : 0.0;
+            $whRadius = isset($wh['radius_km']) ? (float) $wh['radius_km'] : 0.0;
+            if ($whRadius <= 0.0) continue;
+            $distance = self::haversineKm($lat, $lng, $whLat, $whLng);
+            if ($distance <= $whRadius && $distance < $nearestInRadiusDistance) {
+                $nearestInRadiusDistance = $distance;
+                $nearestInRadiusId = (int) ($wh['id'] ?? 0);
+            }
+        }
+
+        if ($nearestInRadiusId !== null && $nearestInRadiusId > 0) {
+            return ['warehouse_id' => $nearestInRadiusId, 'source' => 'in_radius'];
+        }
+
+        $nearestId = WarehouseRepository::findNearestEnabledId($lat, $lng);
+        if ($nearestId !== null && $nearestId > 0) {
+            return ['warehouse_id' => $nearestId, 'source' => 'nearest_fallback'];
+        }
+
+        return ['warehouse_id' => 0, 'source' => 'default'];
+    }
+
+    private static function haversineKm(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $r = 6371.0;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) * sin($dLat / 2)
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+            * sin($dLon / 2) * sin($dLon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return $r * $c;
+    }
+
     /** Default morning window until slot selection exists at checkout. */
     private const DEFAULT_DELIVERY_SLOT = '5 to 7 AM';
 
@@ -52,7 +110,8 @@ final class OrderPlacementService
             $totalPrice += $line['unit_price'] * $q;
         }
 
-        $chargeRows = CartChargeRepository::findAllOrdered();
+        $resolvedWarehouse = self::resolveChargeWarehouse($address);
+        $chargeRows = CartChargeRepository::findAllOrdered($resolvedWarehouse['warehouse_id']);
         $chargeBreakdown = self::computeChargeBreakdown($totalPrice, $chargeRows);
         $otherChargesValue = $chargeBreakdown['lines'];
         $totalCharges = $chargeBreakdown['total'];
@@ -91,7 +150,7 @@ final class OrderPlacementService
                 $cartId,
                 $addressId,
                 isset($address['label']) ? (string) $address['label'] : null,
-                null,
+                $resolvedWarehouse['warehouse_id'] > 0 ? $resolvedWarehouse['warehouse_id'] : null,
                 'placed',
                 'pending',
                 $deliveryDate,
@@ -117,14 +176,6 @@ final class OrderPlacementService
                 'razorpay',
                 $otherChargesValue !== [] ? $otherChargesValue : null
             );
-
-            // Assign the nearest enabled warehouse.
-            if ($lat != 0.0 || $lng != 0.0) {
-                $nearestWid = WarehouseRepository::findNearestEnabledId($lat, $lng);
-                if ($nearestWid !== null) {
-                    OrderRepository::updateWarehouseId($orderId, $nearestWid);
-                }
-            }
 
             foreach ($lines as $line) {
                 $vid = (string) $line['variant_id'];
