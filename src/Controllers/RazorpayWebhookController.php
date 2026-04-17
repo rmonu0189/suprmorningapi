@@ -10,6 +10,9 @@ use App\Core\Response;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentEventRepository;
 use App\Repositories\PaymentRepository;
+use App\Repositories\WalletRepository;
+use App\Repositories\WalletTopupRepository;
+use App\Core\Database;
 use App\Core\Uuid;
 
 final class RazorpayWebhookController
@@ -70,6 +73,18 @@ final class RazorpayWebhookController
             // ignore
         }
 
+        // Log basic webhook telemetry to ease production debugging.
+        try {
+            $logDir = __DIR__ . '/../../storage/logs';
+            if (!is_dir($logDir)) {
+                @mkdir($logDir, 0755, true);
+            }
+            $line = sprintf("[%s] event=%s order_id=%s\n", gmdate('c'), $event, $orderId ?? 'null');
+            @error_log($line, 3, $logDir . '/webhooks.log');
+        } catch (\Throwable) {
+            // ignore
+        }
+
         if ($orderId === null) {
             Response::json(['ok' => true]);
             return;
@@ -78,9 +93,11 @@ final class RazorpayWebhookController
         if ($event === 'payment.captured' || $event === 'order.paid') {
             OrderRepository::updatePaymentStatusByGatewayOrderId($orderId, 'success');
             PaymentRepository::updateStatusByGatewayOrderId($orderId, 'success');
+            self::creditWalletTopupIfApplicable($orderId, self::extractRazorpayPaymentId($event, $payload));
         } elseif ($event === 'payment.failed') {
             OrderRepository::updatePaymentStatusByGatewayOrderId($orderId, 'failed');
             PaymentRepository::updateStatusByGatewayOrderId($orderId, 'failed');
+            WalletTopupRepository::markFailedByGatewayOrderId($orderId, self::extractRazorpayPaymentId($event, $payload));
         }
 
         Response::json(['ok' => true]);
@@ -110,6 +127,80 @@ final class RazorpayWebhookController
             }
         }
 
+        return null;
+    }
+
+    private static function creditWalletTopupIfApplicable(string $gatewayOrderId, ?string $gatewayPaymentId): void
+    {
+        $topup = WalletTopupRepository::findByGatewayOrderId($gatewayOrderId);
+        if ($topup === null) {
+            return;
+        }
+        if ((string) ($topup['status'] ?? '') === 'success') {
+            return;
+        }
+        $topupId = (string) ($topup['id'] ?? '');
+        $userId = (string) ($topup['user_id'] ?? '');
+        $amount = (float) ($topup['amount'] ?? 0);
+        if ($topupId === '' || $userId === '' || $amount <= 0) {
+            return;
+        }
+
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $fresh = WalletTopupRepository::findByGatewayOrderId($gatewayOrderId);
+            if ($fresh === null || (string) ($fresh['status'] ?? '') === 'success') {
+                $pdo->commit();
+                return;
+            }
+
+            WalletRepository::credit(
+                Uuid::v4(),
+                $userId,
+                round($amount, 2),
+                'topup',
+                null,
+                $gatewayPaymentId ?? $gatewayOrderId,
+                'Wallet top-up via Razorpay'
+            );
+            WalletTopupRepository::markSuccessById($topupId, $gatewayPaymentId);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            try {
+                $logDir = __DIR__ . '/../../storage/logs';
+                if (!is_dir($logDir)) {
+                    @mkdir($logDir, 0755, true);
+                }
+                $line = sprintf("[%s] wallet_credit_failed order=%s err=%s\n", gmdate('c'), $gatewayOrderId, $e->getMessage());
+                @error_log($line, 3, $logDir . '/webhooks.log');
+            } catch (\Throwable) {
+                // ignore
+            }
+            // Do not fail webhook ack to avoid repeated retries due local processing issue.
+            return;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private static function extractRazorpayPaymentId(string $event, array $payload): ?string
+    {
+        if (!str_starts_with($event, 'payment.') && $event !== 'order.paid') {
+            return null;
+        }
+
+        $pay = $payload['payment'] ?? null;
+        if (is_array($pay)) {
+            $ent = $pay['entity'] ?? null;
+            if (is_array($ent) && isset($ent['id']) && is_string($ent['id'])) {
+                return $ent['id'];
+            }
+        }
         return null;
     }
 }

@@ -185,6 +185,50 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_created ON subscriptions(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_variant_created ON subscriptions(variant_id, created_at);
 
+CREATE TABLE IF NOT EXISTS wallets (
+  user_id TEXT PRIMARY KEY,
+  balance REAL NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  order_id TEXT NULL,
+  type TEXT NOT NULL,
+  source TEXT NOT NULL,
+  amount REAL NOT NULL,
+  status TEXT NOT NULL DEFAULT 'success',
+  reference_id TEXT NULL,
+  note TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_created ON wallet_transactions(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_order ON wallet_transactions(order_id);
+
+CREATE TABLE IF NOT EXISTS wallet_topups (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  amount REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  gateway_name TEXT NOT NULL DEFAULT 'razorpay',
+  gateway_order_id TEXT NOT NULL UNIQUE,
+  gateway_payment_id TEXT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'created',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  credited_at TEXT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_wallet_topups_user_created ON wallet_topups(user_id, created_at);
+
 -- Admin-triggered subscription order generation progress per user.
 CREATE TABLE IF NOT EXISTS subscription_order_generation (
   delivery_date TEXT NOT NULL,

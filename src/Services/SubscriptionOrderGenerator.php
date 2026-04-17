@@ -12,6 +12,7 @@ use App\Repositories\CatalogRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
 use App\Repositories\SubscriptionRepository;
+use App\Repositories\WalletRepository;
 use App\Repositories\WarehouseRepository;
 use DateTimeImmutable;
 
@@ -25,7 +26,7 @@ final class SubscriptionOrderGenerator
      *
      * Idempotent: if a subscription order already exists for the user+date, we skip.
      *
-     * @return array{delivery_date: string, users_processed: int, users_created: int, orders_created: int, users_skipped_existing: int, users_skipped_no_items: int, users_skipped_no_address: int}
+     * @return array{delivery_date: string, users_processed: int, users_created: int, orders_created: int, users_skipped_existing: int, users_skipped_no_items: int, users_skipped_no_address: int, users_skipped_insufficient_wallet: int}
      */
     public static function generateForDeliveryDate(DateTimeImmutable $deliveryDate, int $pageSize = 200): array
     {
@@ -39,6 +40,7 @@ final class SubscriptionOrderGenerator
         $usersSkippedExisting = 0;
         $usersSkippedNoItems = 0;
         $usersSkippedNoAddress = 0;
+        $usersSkippedInsufficientWallet = 0;
 
         $offset = 0;
         while (true) {
@@ -69,7 +71,11 @@ final class SubscriptionOrderGenerator
                     continue;
                 }
 
-                self::createSubscriptionOrderForUser($userId, $address, $variantQty, $deliveryDate);
+                $createdOrderId = self::createSubscriptionOrderForUser($userId, $address, $variantQty, $deliveryDate);
+                if ($createdOrderId === null) {
+                    $usersSkippedInsufficientWallet++;
+                    continue;
+                }
                 $usersCreated++;
                 $ordersCreated++;
             }
@@ -83,13 +89,14 @@ final class SubscriptionOrderGenerator
             'users_skipped_existing' => $usersSkippedExisting,
             'users_skipped_no_items' => $usersSkippedNoItems,
             'users_skipped_no_address' => $usersSkippedNoAddress,
+            'users_skipped_insufficient_wallet' => $usersSkippedInsufficientWallet,
         ];
     }
 
     /**
      * Generate (or verify) a subscription order for a single user for the given delivery date.
      *
-     * @return array{status: 'success'|'skipped_no_items'|'skipped_no_address', order_id: string|null, existing: bool}
+     * @return array{status: 'success'|'skipped_no_items'|'skipped_no_address'|'skipped_insufficient_wallet', order_id: string|null, existing: bool}
      */
     public static function generateForUser(string $userId, DateTimeImmutable $deliveryDate): array
     {
@@ -113,7 +120,7 @@ final class SubscriptionOrderGenerator
 
         $orderId = self::createSubscriptionOrderForUser($userId, $address, $variantQty, $deliveryDate);
         if ($orderId === null) {
-            return ['status' => 'skipped_no_items', 'order_id' => null, 'existing' => false];
+            return ['status' => 'skipped_insufficient_wallet', 'order_id' => null, 'existing' => false];
         }
         return ['status' => 'success', 'order_id' => $orderId, 'existing' => false];
     }
@@ -279,7 +286,7 @@ final class SubscriptionOrderGenerator
                 $totalPrice,
                 $totalCharges,
                 $gatewayOrderId,
-                'razorpay',
+                'wallet',
                 $otherChargesValue !== [] ? $otherChargesValue : null
             );
             OrderRepository::updateOrderKind($orderId, 'subscription');
@@ -299,15 +306,36 @@ final class SubscriptionOrderGenerator
                 );
             }
 
+            $walletTxId = Uuid::v4();
+            $debited = WalletRepository::debit(
+                $walletTxId,
+                $userId,
+                round($grandTotal, 2),
+                'subscription_order',
+                $orderId,
+                null,
+                'Subscription order payment via wallet'
+            );
+            if (!$debited) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                return null;
+            }
+
+            $gatewayOrderId = 'wallet_' . $walletTxId;
+            OrderRepository::updateGatewayOrderId($orderId, $gatewayOrderId);
+            OrderRepository::updatePaymentStatusByGatewayOrderId($gatewayOrderId, 'success');
+
             PaymentRepository::insert(
                 Uuid::v4(),
                 $orderId,
                 $userId,
-                'razorpay',
+                'wallet',
                 $gatewayOrderId,
                 $grandTotal,
                 'INR',
-                'initiated'
+                'success'
             );
 
             $pdo->commit();

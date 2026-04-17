@@ -14,8 +14,8 @@ use App\Repositories\CartRepository;
 use App\Repositories\CatalogRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
+use App\Repositories\WalletRepository;
 use App\Repositories\WarehouseRepository;
-use App\Core\Env;
 use DateTimeImmutable;
 use PDOException;
 
@@ -83,7 +83,7 @@ final class OrderPlacementService
     private const DEFAULT_DELIVERY_SLOT = '5 to 7 AM';
 
     /**
-     * @return array{order: array{id: string}, razorpayResponse: array<string, mixed>, razonpayResponse: array<string, mixed>}
+     * @return array{order: array{id: string}, payment: array{mode:string,status:string,gateway_order_id:string|null}}
      */
     public static function place(string $userId, string $cartId, string $addressId): array
     {
@@ -121,8 +121,7 @@ final class OrderPlacementService
         $tax = 0.0;
 
         $grandTotal = $totalPrice + $totalCharges;
-        $amountPaise = (int) round($grandTotal * 100);
-        if ($amountPaise < 1) {
+        if ($grandTotal < 0.01) {
             throw new HttpException('Order total too small for payment', 400);
         }
 
@@ -173,7 +172,7 @@ final class OrderPlacementService
                 $totalPrice,
                 $totalCharges,
                 null,
-                'razorpay',
+                'wallet',
                 $otherChargesValue !== [] ? $otherChargesValue : null
             );
 
@@ -194,32 +193,39 @@ final class OrderPlacementService
                 );
             }
 
-            $razorpay = RazorpayService::createOrder($amountPaise, $orderId, 'INR');
-            $gatewayId = (string) $razorpay['id'];
+            $walletTxId = Uuid::v4();
+            $debited = WalletRepository::debit(
+                $walletTxId,
+                $userId,
+                round($grandTotal, 2),
+                'order',
+                $orderId,
+                null,
+                'Order payment via wallet'
+            );
+            if (!$debited) {
+                throw new HttpException('Insufficient wallet balance', 400);
+            }
+
+            $gatewayId = 'wallet_' . $walletTxId;
             OrderRepository::updateGatewayOrderId($orderId, $gatewayId);
+            OrderRepository::updatePaymentStatusByGatewayOrderId($gatewayId, 'success');
 
             PaymentRepository::insert(
                 Uuid::v4(),
                 $orderId,
                 $userId,
-                'razorpay',
+                'wallet',
                 $gatewayId,
                 $grandTotal,
                 'INR',
-                'initiated'
+                'success'
             );
 
             $pdo->commit();
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
-            }
-            self::logOrderPlacementError($e);
-            if (strtolower(trim((string) Env::get('APP_DEBUG', 'false'))) === 'true') {
-                throw new HttpException(
-                    'Could not create order: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
-                    500
-                );
             }
             throw new HttpException('Could not create order', 500);
         } catch (\Throwable $e) {
@@ -229,38 +235,17 @@ final class OrderPlacementService
             if ($e instanceof HttpException || $e instanceof ValidationException) {
                 throw $e;
             }
-            self::logOrderPlacementError($e);
-            if (strtolower(trim((string) Env::get('APP_DEBUG', 'false'))) === 'true') {
-                throw new HttpException(
-                    'Could not create order: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(),
-                    500
-                );
-            }
             throw new HttpException('Could not create order', 500);
         }
 
         return [
             'order' => ['id' => $orderId],
-            'razorpayResponse' => $razorpay,
-            'razonpayResponse' => $razorpay,
+            'payment' => [
+                'mode' => 'wallet',
+                'status' => 'success',
+                'gateway_order_id' => $gatewayId,
+            ],
         ];
-    }
-
-    private static function logOrderPlacementError(\Throwable $e): void
-    {
-        $logDir = __DIR__ . '/../../storage/logs';
-        if (!is_dir($logDir)) {
-            @mkdir($logDir, 0755, true);
-        }
-        $line = sprintf(
-            "[%s] %s: %s in %s:%d\n",
-            gmdate('c'),
-            $e::class,
-            $e->getMessage(),
-            $e->getFile(),
-            $e->getLine()
-        );
-        @error_log($line, 3, $logDir . '/app.log');
     }
 
     /**

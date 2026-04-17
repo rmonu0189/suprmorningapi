@@ -36,6 +36,7 @@ use App\Controllers\AdminSubscriptionsController;
 use App\Controllers\AdminSubscriptionOrdersController;
 use App\Controllers\ServiceabilityController;
 use App\Controllers\SearchController;
+use App\Controllers\WalletController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
 require_once __DIR__ . '/../Controllers/AdminDeliveryController.php';
@@ -112,12 +113,15 @@ require_once __DIR__ . '/../Repositories/CouponRepository.php';
 require_once __DIR__ . '/../Repositories/FileRepository.php';
 require_once __DIR__ . '/../Repositories/SubscriptionRepository.php';
 require_once __DIR__ . '/../Repositories/SubscriptionOrderGenerationRepository.php';
+require_once __DIR__ . '/../Repositories/WalletRepository.php';
+require_once __DIR__ . '/../Repositories/WalletTopupRepository.php';
 require_once __DIR__ . '/../Services/RazorpayService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
 require_once __DIR__ . '/../Services/SubscriptionOrderGenerator.php';
 require_once __DIR__ . '/../Services/SearchScoring.php';
 require_once __DIR__ . '/../Repositories/GlobalSearchRepository.php';
 require_once __DIR__ . '/../Controllers/SearchController.php';
+require_once __DIR__ . '/../Controllers/WalletController.php';
 
 final class App
 {
@@ -168,6 +172,7 @@ final class App
         $adminSubscriptionOrders = new AdminSubscriptionOrdersController();
         $razorpayHook = new RazorpayWebhookController();
         $serviceability = new ServiceabilityController();
+        $wallet = new WalletController();
 
         $router->add('GET', self::API_PREFIX . '/brands', static function (Request $r) use ($brands): void {
             $brands->index($r);
@@ -393,6 +398,18 @@ final class App
         });
         $router->add('DELETE', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
             $subscriptions->cancel($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/wallet', static function (Request $r) use ($wallet): void {
+            $wallet->show($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/wallet/add-funds/create-order', static function (Request $r) use ($wallet): void {
+            $wallet->createAddFundsOrder($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/wallet/add-funds/status', static function (Request $r) use ($wallet): void {
+            $wallet->addFundsStatus($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/wallet/add-funds/confirm', static function (Request $r) use ($wallet): void {
+            $wallet->confirmAddFunds($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
