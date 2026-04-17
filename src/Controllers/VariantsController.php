@@ -14,6 +14,7 @@ use App\Middleware\AuthMiddleware;
 use App\Repositories\InventoryRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\VariantRepository;
+use App\Repositories\VariantTagMasterRepository;
 use PDOException;
 
 final class VariantsController
@@ -131,6 +132,14 @@ final class VariantsController
             $discountTag = self::nullableString($body['discount_tag'], 'discount_tag');
         }
 
+        $tags = [];
+        if (array_key_exists('tags', $body)) {
+            $tags = self::parseTags($body['tags']);
+            if ($tags !== [] && VariantTagMasterRepository::countExistingEnabledByNames($tags) !== count($tags)) {
+                throw new ValidationException('Invalid tags', ['tags' => 'One or more tags do not exist in tag master or are disabled.']);
+            }
+        }
+
         $id = Uuid::v4();
 
         try {
@@ -144,7 +153,8 @@ final class VariantsController
                 $images,
                 $metadata,
                 $status,
-                $discountTag
+                $discountTag,
+                $tags
             );
             // Legacy/global bucket (admin can later adjust per-warehouse stock).
             InventoryRepository::insert(Uuid::v4(), 0, $id, 0, 0);
@@ -258,9 +268,18 @@ final class VariantsController
             $discountTag = self::nullableString($body['discount_tag'], 'discount_tag');
         }
 
+        $tags = null;
+        $tagsProvided = array_key_exists('tags', $body);
+        if ($tagsProvided) {
+            $tags = self::parseTags($body['tags']);
+            if ($tags !== [] && VariantTagMasterRepository::countExistingEnabledByNames($tags) !== count($tags)) {
+                throw new ValidationException('Invalid tags', ['tags' => 'One or more tags do not exist in tag master or are disabled.']);
+            }
+        }
+
         if (
             $productId === null && $name === null && $sku === null && $price === null && $mrp === null
-            && !$imagesProvided && !$metadataProvided && $status === null && !$discountTagProvided
+            && !$imagesProvided && !$metadataProvided && $status === null && !$discountTagProvided && !$tagsProvided
         ) {
             throw new ValidationException('Nothing to update', [
                 'body' => 'Provide at least one field to update.',
@@ -281,7 +300,9 @@ final class VariantsController
                 $metadataProvided,
                 $status,
                 $discountTag,
-                $discountTagProvided
+                $discountTagProvided,
+                $tags,
+                $tagsProvided
             );
         } catch (PDOException $e) {
             $msg = $e->getMessage();
@@ -416,5 +437,46 @@ final class VariantsController
         $t = trim($v);
 
         return $t === '' ? null : $t;
+    }
+
+    /** @return list<string> */
+    private static function parseTags(mixed $v): array
+    {
+        if ($v === null) {
+            return [];
+        }
+        if (!is_array($v)) {
+            throw new ValidationException('Invalid tags', ['tags' => 'Must be an array of strings or null.']);
+        }
+        $out = [];
+        $seen = [];
+        foreach ($v as $item) {
+            if (!is_string($item)) {
+                throw new ValidationException('Invalid tags', ['tags' => 'Must be an array of strings or null.']);
+            }
+            $normalized = self::normalizeTag($item);
+            if ($normalized === '') {
+                continue;
+            }
+            if (isset($seen[$normalized])) {
+                continue;
+            }
+            $seen[$normalized] = true;
+            $out[] = $normalized;
+        }
+
+        return $out;
+    }
+
+    private static function normalizeTag(string $raw): string
+    {
+        $t = trim($raw);
+        while (str_starts_with($t, '#')) {
+            $t = ltrim($t, '#');
+        }
+        $t = strtoupper(trim($t));
+        $t = preg_replace('/[^A-Z0-9_-]/', '', $t) ?? '';
+
+        return $t;
     }
 }

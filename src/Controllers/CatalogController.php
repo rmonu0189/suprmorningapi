@@ -90,6 +90,7 @@ final class CatalogController
             'category_id' => trim((string) ($request->query('category_id') ?? $request->query('categoryId') ?? '')),
             'subcategory_id' => trim((string) ($request->query('subcategory_id') ?? $request->query('subcategoryId') ?? $request->query('subCategoryId') ?? '')),
             'product_id' => trim((string) ($request->query('product_id') ?? $request->query('productId') ?? '')),
+            'tags' => self::parseTagsFilter((string) ($request->query('tags') ?? $request->query('tag') ?? '')),
         ];
 
         // Support target-driven routing where query contains filter key and id carries value.
@@ -104,11 +105,20 @@ final class CatalogController
                 $filters['subcategory_id'] = $queryValue;
             } elseif ($queryKey === 'product_id' || $queryKey === 'productId') {
                 $filters['product_id'] = $queryValue;
+            } elseif ($queryKey === 'tags' || $queryKey === 'tag') {
+                $filters['tags'] = self::parseTagsFilter($queryValue);
             }
         }
 
         $hasAtLeastOneFilter = false;
         foreach ($filters as $value) {
+            if (is_array($value)) {
+                if ($value !== []) {
+                    $hasAtLeastOneFilter = true;
+                    break;
+                }
+                continue;
+            }
             if ($value !== '') {
                 $hasAtLeastOneFilter = true;
                 break;
@@ -120,6 +130,9 @@ final class CatalogController
         }
 
         foreach ($filters as $value) {
+            if (is_array($value)) {
+                continue;
+            }
             if ($value !== '' && !Uuid::isValid($value)) {
                 Response::json(['variants' => []]);
                 return;
@@ -132,5 +145,42 @@ final class CatalogController
         Response::json([
             'variants' => CatalogRepository::findListingVariants($filters, $page, $limit),
         ]);
+    }
+
+    /** @return list<string> */
+    private static function parseTagsFilter(string $raw): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return [];
+        }
+        $parts = preg_split('/[,\s]+/', $raw) ?: [];
+        $out = [];
+        $seen = [];
+        foreach ($parts as $part) {
+            if (!is_string($part)) {
+                continue;
+            }
+            $tag = self::normalizeTag($part);
+            if ($tag === '' || isset($seen[$tag])) {
+                continue;
+            }
+            $seen[$tag] = true;
+            $out[] = $tag;
+        }
+
+        return $out;
+    }
+
+    private static function normalizeTag(string $raw): string
+    {
+        $t = trim($raw);
+        while (str_starts_with($t, '#')) {
+            $t = ltrim($t, '#');
+        }
+        $t = strtoupper(trim($t));
+        $t = preg_replace('/[^A-Z0-9_-]/', '', $t) ?? '';
+
+        return $t;
     }
 }

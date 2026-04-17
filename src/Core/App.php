@@ -10,6 +10,7 @@ use App\Controllers\AdminDashboardController;
 use App\Controllers\AdminUsersController;
 use App\Controllers\AdminAnalyticsController;
 use App\Controllers\AdminWarehouseController;
+use App\Controllers\AdminVariantTagsController;
 use App\Controllers\AddressController;
 use App\Controllers\AuthController;
 use App\Controllers\AdminUploadsController;
@@ -42,6 +43,7 @@ require_once __DIR__ . '/../Controllers/AdminDashboardController.php';
 require_once __DIR__ . '/../Controllers/AdminUsersController.php';
 require_once __DIR__ . '/../Controllers/AdminAnalyticsController.php';
 require_once __DIR__ . '/../Controllers/AdminWarehouseController.php';
+require_once __DIR__ . '/../Controllers/AdminVariantTagsController.php';
 require_once __DIR__ . '/../Controllers/AdminUploadsController.php';
 require_once __DIR__ . '/../Controllers/FilesController.php';
 require_once __DIR__ . '/../Controllers/AddressController.php';
@@ -83,6 +85,7 @@ require_once __DIR__ . '/../Security/LoginLockout.php';
 require_once __DIR__ . '/../Core/Phone.php';
 require_once __DIR__ . '/../Repositories/UserRepository.php';
 require_once __DIR__ . '/../Repositories/WarehouseRepository.php';
+require_once __DIR__ . '/../Repositories/VariantTagMasterRepository.php';
 require_once __DIR__ . '/../Repositories/RefreshTokenRepository.php';
 require_once __DIR__ . '/../Repositories/PhoneOtpChallengeRepository.php';
 require_once __DIR__ . '/../Services/OtpNotifier.php';
@@ -150,6 +153,7 @@ final class App
         $adminDashboard = new AdminDashboardController();
         $adminUsers = new AdminUsersController();
         $adminWarehouses = new AdminWarehouseController();
+        $adminVariantTags = new AdminVariantTagsController();
         $adminUploads = new AdminUploadsController();
         $files = new FilesController();
         $products = new ProductsController();
@@ -452,6 +456,18 @@ final class App
         });
         $router->add('POST', self::API_PREFIX . '/admin/uploads', static function (Request $r) use ($adminUploads): void {
             $adminUploads->upload($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/admin/tags', static function (Request $r) use ($adminVariantTags): void {
+            $adminVariantTags->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/admin/tags', static function (Request $r) use ($adminVariantTags): void {
+            $adminVariantTags->create($r);
+        });
+        $router->add('PUT', self::API_PREFIX . '/admin/tags', static function (Request $r) use ($adminVariantTags): void {
+            $adminVariantTags->update($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/admin/tags', static function (Request $r) use ($adminVariantTags): void {
+            $adminVariantTags->delete($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/files', static function (Request $r) use ($files): void {

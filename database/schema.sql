@@ -152,10 +152,22 @@ CREATE TABLE IF NOT EXISTS variants (
     metadata JSON NULL,
     status TINYINT(1) NOT NULL DEFAULT 1,
     discount_tag VARCHAR(255) NULL,
+    tags JSON NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_variants_sku (sku),
     KEY idx_variants_product (product_id),
     CONSTRAINT fk_variants_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS variant_tag_master (
+    id CHAR(36) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    name VARCHAR(64) NOT NULL,
+    status TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_variant_tag_master_name (name),
+    KEY idx_variant_tag_master_status_sort (status, sort_order, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS inventory (

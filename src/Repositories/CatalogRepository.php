@@ -15,6 +15,7 @@ final class CatalogRepository
     public static function findListingVariants(array $filters = [], int $page = 1, int $limit = 100): array
     {
         $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images,
+                       v.tags,
                        v.status, v.discount_tag,
                        p.id AS product_table_id, p.name AS product_name, p.description AS product_description,
                        p.status AS product_status, p.category_id AS product_category_id, p.subcategory_id AS product_subcategory_id,
@@ -31,6 +32,7 @@ final class CatalogRepository
         $categoryId = isset($filters['category_id']) && is_string($filters['category_id']) ? trim($filters['category_id']) : '';
         $subcategoryId = isset($filters['subcategory_id']) && is_string($filters['subcategory_id']) ? trim($filters['subcategory_id']) : '';
         $productId = isset($filters['product_id']) && is_string($filters['product_id']) ? trim($filters['product_id']) : '';
+        $tags = isset($filters['tags']) && is_array($filters['tags']) ? array_values(array_filter($filters['tags'], 'is_string')) : [];
 
         if ($brandId !== '') {
             $sql .= ' AND b.id = :brandId';
@@ -47,6 +49,20 @@ final class CatalogRepository
         if ($productId !== '') {
             $sql .= ' AND p.id = :productId';
             $params['productId'] = $productId;
+        }
+        if ($tags !== []) {
+            $tagWhere = [];
+            $driver = (string) Database::connection()->getAttribute(PDO::ATTR_DRIVER_NAME);
+            foreach ($tags as $index => $tag) {
+                $paramName = 'tag' . $index;
+                if ($driver === 'sqlite') {
+                    $tagWhere[] = "EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags, '[]')) WHERE UPPER(json_each.value) = :$paramName)";
+                } else {
+                    $tagWhere[] = "JSON_CONTAINS(COALESCE(v.tags, JSON_ARRAY()), JSON_QUOTE(:$paramName))";
+                }
+                $params[$paramName] = $tag;
+            }
+            $sql .= ' AND (' . implode(' OR ', $tagWhere) . ')';
         }
 
         $page = max(1, $page);
@@ -78,7 +94,7 @@ final class CatalogRepository
     {
         $pdo = Database::connection();
         $stmt = $pdo->prepare(
-            'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata,
+            'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata, v.tags,
                     v.status, v.discount_tag,
                     p.id AS product_table_id, p.name AS product_name, p.brand_id, p.description AS product_description,
                     p.metadata AS product_metadata, p.status AS product_status, p.subcategory_id AS product_subcategory_id,
@@ -113,7 +129,7 @@ final class CatalogRepository
 
         $limit = max(1, min(48, $limit));
 
-        $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata,
+        $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata, v.tags,
                        v.status, v.discount_tag,
                        p.id AS product_table_id, p.name AS product_name, p.description AS product_description,
                        p.metadata AS product_metadata, p.status AS product_status, p.subcategory_id AS product_subcategory_id,
@@ -194,6 +210,7 @@ final class CatalogRepository
             'mrp' => (float) $row['mrp'],
             'images' => $images,
             'metadata' => self::decodeJsonObject($row['metadata'] ?? null),
+            'tags' => self::decodeImages($row['tags'] ?? null),
             'status' => (bool) (int) $row['status'],
             'discount_tag' => $row['discount_tag'] !== null && $row['discount_tag'] !== '' ? (string) $row['discount_tag'] : null,
             'products' => [

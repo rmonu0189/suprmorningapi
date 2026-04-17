@@ -116,8 +116,19 @@ CREATE TABLE IF NOT EXISTS variants (
   metadata TEXT NULL,
   status INTEGER NOT NULL DEFAULT 1,
   discount_tag TEXT NULL,
+  tags TEXT NULL,
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS variant_tag_master (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  name TEXT NOT NULL UNIQUE,
+  status INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_variant_tag_master_status_sort ON variant_tag_master(status, sort_order, name);
 
 CREATE TABLE IF NOT EXISTS inventory (
   id TEXT PRIMARY KEY,

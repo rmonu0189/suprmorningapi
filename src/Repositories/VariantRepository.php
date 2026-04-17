@@ -14,7 +14,7 @@ final class VariantRepository
      */
     public static function findAll(?string $productId = null): array
     {
-        $sql = 'SELECT id, created_at, product_id, name, sku, price, mrp, images, metadata, status, discount_tag
+        $sql = 'SELECT id, created_at, product_id, name, sku, price, mrp, images, metadata, status, discount_tag, tags
                 FROM variants';
         $params = [];
         if ($productId !== null && $productId !== '') {
@@ -59,7 +59,7 @@ final class VariantRepository
         $like = '%' . $needle . '%';
 
         // NOTE: some PDO drivers don't allow binding LIMIT reliably; embed the sanitized int.
-        $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata, v.status, v.discount_tag,
+        $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata, v.status, v.discount_tag, v.tags,
                        p.name AS product_name,
                        b.name AS brand_name
                 FROM variants v
@@ -113,7 +113,7 @@ final class VariantRepository
     public static function findById(string $id): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT id, created_at, product_id, name, sku, price, mrp, images, metadata, status, discount_tag
+            'SELECT id, created_at, product_id, name, sku, price, mrp, images, metadata, status, discount_tag, tags
              FROM variants WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
@@ -157,11 +157,12 @@ final class VariantRepository
         array $images,
         ?array $metadata,
         bool $status,
-        ?string $discountTag
+        ?string $discountTag,
+        array $tags
     ): void {
         $stmt = Database::connection()->prepare(
-            'INSERT INTO variants (id, product_id, name, sku, price, mrp, images, metadata, status, discount_tag)
-             VALUES (:id, :pid, :name, :sku, :price, :mrp, :images, :meta, :status, :dtag)'
+            'INSERT INTO variants (id, product_id, name, sku, price, mrp, images, metadata, status, discount_tag, tags)
+             VALUES (:id, :pid, :name, :sku, :price, :mrp, :images, :meta, :status, :dtag, :tags)'
         );
         $stmt->execute([
             'id' => $id,
@@ -174,6 +175,7 @@ final class VariantRepository
             'meta' => self::encodeMetadata($metadata),
             'status' => $status ? 1 : 0,
             'dtag' => $discountTag,
+            'tags' => self::encodeTags($tags),
         ]);
     }
 
@@ -194,7 +196,9 @@ final class VariantRepository
         bool $metadataProvided,
         ?bool $status,
         ?string $discountTag,
-        bool $discountTagProvided
+        bool $discountTagProvided,
+        ?array $tags,
+        bool $tagsProvided
     ): void {
         $sets = [];
         $params = ['id' => $id];
@@ -235,6 +239,10 @@ final class VariantRepository
             $sets[] = 'discount_tag = :dtag';
             $params['dtag'] = $discountTag;
         }
+        if ($tagsProvided) {
+            $sets[] = 'tags = :tags';
+            $params['tags'] = self::encodeTags($tags ?? []);
+        }
 
         if ($sets === []) {
             return;
@@ -270,6 +278,7 @@ final class VariantRepository
             'metadata' => self::decodeMetadata($row['metadata'] ?? null),
             'status' => (bool) (int) $row['status'],
             'discount_tag' => $dt === null || $dt === '' ? null : (string) $dt,
+            'tags' => self::decodeTags($row['tags'] ?? null),
         ];
     }
 
@@ -329,6 +338,45 @@ final class VariantRepository
         }
 
         $j = json_encode($metadata, JSON_UNESCAPED_UNICODE);
+
+        return $j === false ? null : $j;
+    }
+
+    /** @return list<string> */
+    private static function decodeTags(mixed $json): array
+    {
+        if ($json === null || $json === '') {
+            return [];
+        }
+        if (is_string($json)) {
+            $d = json_decode($json, true);
+            if (!is_array($d)) {
+                return [];
+            }
+            $out = [];
+            foreach ($d as $item) {
+                if (is_string($item)) {
+                    $t = trim($item);
+                    if ($t !== '') {
+                        $out[] = $t;
+                    }
+                }
+            }
+
+            return $out;
+        }
+
+        return [];
+    }
+
+    /** @param list<string> $tags */
+    private static function encodeTags(array $tags): ?string
+    {
+        if ($tags === []) {
+            return null;
+        }
+
+        $j = json_encode(array_values($tags), JSON_UNESCAPED_UNICODE);
 
         return $j === false ? null : $j;
     }
