@@ -366,6 +366,9 @@ final class App
         $router->add('GET', self::API_PREFIX . '/orders/payment-status', static function (Request $r) use ($orders): void {
             $orders->paymentStatus($r);
         });
+        $router->add('POST', self::API_PREFIX . '/orders/reorder', static function (Request $r) use ($orders): void {
+            $orders->reorder($r);
+        });
         $router->add('GET', self::API_PREFIX . '/orders/ratings', static function (Request $r) use ($orderRatings): void {
             $orderRatings->byOrder($r);
         });

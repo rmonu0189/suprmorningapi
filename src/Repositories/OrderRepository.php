@@ -934,6 +934,52 @@ final class OrderRepository
         return self::formatOrderWithItems($row);
     }
 
+    public static function findWarehouseIdForOrderAndUser(string $orderId, string $userId): ?int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT warehouse_id FROM orders WHERE id = :id AND user_id = :uid LIMIT 1'
+        );
+        $stmt->execute(['id' => $orderId, 'uid' => $userId]);
+        $v = $stmt->fetchColumn();
+        if ($v === false || $v === null || $v === '') return null;
+        return (int) $v;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public static function findReorderEvaluationRows(string $orderId, int $warehouseId): array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT
+                oi.id AS order_item_id,
+                oi.sku,
+                oi.quantity AS ordered_quantity,
+                v.id AS variant_id,
+                v.status AS variant_status,
+                v.price AS current_price,
+                v.mrp AS current_mrp,
+                p.status AS product_status,
+                b.status AS brand_status,
+                i.quantity AS inv_quantity,
+                i.reserved_quantity AS inv_reserved
+             FROM order_items oi
+             LEFT JOIN variants v ON v.sku = oi.sku
+             LEFT JOIN products p ON p.id = v.product_id
+             LEFT JOIN brands b ON b.id = p.brand_id
+             LEFT JOIN inventory i ON i.variant_id = v.id AND i.warehouse_id = :wid
+             WHERE oi.order_id = :oid
+             ORDER BY oi.created_at ASC, oi.id ASC'
+        );
+        $stmt->execute([
+            'oid' => $orderId,
+            'wid' => $warehouseId,
+        ]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) return [];
+        return array_values(array_filter($rows, static fn ($r) => is_array($r)));
+    }
+
     /** @return array<string, mixed>|null */
     public static function findByGatewayForUser(string $gatewayOrderId, string $userId): ?array
     {
