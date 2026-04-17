@@ -34,6 +34,7 @@ use App\Controllers\SubscriptionController;
 use App\Controllers\AdminSubscriptionsController;
 use App\Controllers\AdminSubscriptionOrdersController;
 use App\Controllers\ServiceabilityController;
+use App\Controllers\SearchController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
 require_once __DIR__ . '/../Controllers/AdminDeliveryController.php';
@@ -111,6 +112,9 @@ require_once __DIR__ . '/../Repositories/SubscriptionOrderGenerationRepository.p
 require_once __DIR__ . '/../Services/RazorpayService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
 require_once __DIR__ . '/../Services/SubscriptionOrderGenerator.php';
+require_once __DIR__ . '/../Services/SearchScoring.php';
+require_once __DIR__ . '/../Repositories/GlobalSearchRepository.php';
+require_once __DIR__ . '/../Controllers/SearchController.php';
 
 final class App
 {
@@ -137,6 +141,7 @@ final class App
         $addresses = new AddressController();
         $loves = new LoveController();
         $catalog = new CatalogController();
+        $search = new SearchController();
         $orders = new OrderController();
         $orderRatings = new OrderRatingController();
         $adminOrders = new AdminOrderController();
@@ -341,6 +346,9 @@ final class App
         });
         $router->add('GET', self::API_PREFIX . '/catalog/products', static function (Request $r) use ($catalog): void {
             $catalog->products($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/search', static function (Request $r) use ($search): void {
+            $search->index($r);
         });
 
         $router->add('POST', self::API_PREFIX . '/orders/place', static function (Request $r) use ($orders): void {
