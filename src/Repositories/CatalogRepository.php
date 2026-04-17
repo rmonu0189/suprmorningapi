@@ -12,7 +12,7 @@ final class CatalogRepository
     /**
      * @return list<array<string, mixed>>
      */
-    public static function findListingVariants(array $filters = []): array
+    public static function findListingVariants(array $filters = [], int $page = 1, int $limit = 100): array
     {
         $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images,
                        v.status, v.discount_tag,
@@ -49,7 +49,10 @@ final class CatalogRepository
             $params['productId'] = $productId;
         }
 
-        $sql .= ' ORDER BY p.name ASC, v.name ASC, v.id ASC';
+        $page = max(1, $page);
+        $limit = max(1, min(100, $limit));
+        $offset = ($page - 1) * $limit;
+        $sql .= ' ORDER BY p.name ASC, v.name ASC, v.id ASC LIMIT ' . $limit . ' OFFSET ' . $offset;
 
         $stmt = Database::connection()->prepare($sql);
         $stmt->execute($params);

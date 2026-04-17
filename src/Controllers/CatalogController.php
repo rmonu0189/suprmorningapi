@@ -126,8 +126,11 @@ final class CatalogController
             }
         }
 
+        $page = max(1, (int) ($request->query('page') ?? 1));
+        $limit = max(1, min(100, (int) ($request->query('limit') ?? 30)));
+
         Response::json([
-            'variants' => CatalogRepository::findListingVariants($filters),
+            'variants' => CatalogRepository::findListingVariants($filters, $page, $limit),
         ]);
     }
 }
