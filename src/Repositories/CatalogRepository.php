@@ -61,7 +61,7 @@ final class CatalogRepository
             'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata,
                     v.status, v.discount_tag,
                     p.id AS product_table_id, p.name AS product_name, p.brand_id, p.description AS product_description,
-                    p.metadata AS product_metadata, p.status AS product_status,
+                    p.metadata AS product_metadata, p.status AS product_status, p.subcategory_id AS product_subcategory_id,
                     b.id AS brand_id_val, b.name AS brand_name, b.about AS brand_about, b.logo AS brand_logo, b.status AS brand_status,
                     i.quantity AS inv_quantity, i.reserved_quantity AS inv_reserved
              FROM variants v
@@ -78,6 +78,55 @@ final class CatalogRepository
         }
 
         return self::shapeVariantRow($row);
+    }
+
+    /**
+     * Active variants sharing the same product subcategory, excluding the current variant only (max $limit).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function findSimilarVariantsBySubcategory(string $subcategoryId, string $excludeVariantId, int $limit = 10): array
+    {
+        if ($subcategoryId === '' || $excludeVariantId === '') {
+            return [];
+        }
+
+        $limit = max(1, min(48, $limit));
+
+        $sql = 'SELECT v.id, v.created_at, v.product_id, v.name, v.sku, v.price, v.mrp, v.images, v.metadata,
+                       v.status, v.discount_tag,
+                       p.id AS product_table_id, p.name AS product_name, p.description AS product_description,
+                       p.metadata AS product_metadata, p.status AS product_status, p.subcategory_id AS product_subcategory_id,
+                       b.id AS brand_id_val, b.name AS brand_name, b.about AS brand_about, b.logo AS brand_logo, b.status AS brand_status,
+                       i.quantity AS inv_quantity, i.reserved_quantity AS inv_reserved
+                FROM variants v
+                INNER JOIN products p ON p.id = v.product_id
+                INNER JOIN brands b ON b.id = p.brand_id
+                LEFT JOIN inventory i ON i.variant_id = v.id
+                WHERE v.status = 1 AND p.status = 1 AND b.status = 1
+                  AND p.subcategory_id = :subId
+                  AND v.id <> :excludeVid
+                ORDER BY p.name ASC, v.name ASC, v.id ASC
+                LIMIT ' . $limit;
+
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute([
+            'subId' => $subcategoryId,
+            'excludeVid' => $excludeVariantId,
+        ]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = self::shapeVariantRow($row);
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -134,6 +183,9 @@ final class CatalogRepository
                 'description' => $row['product_description'] !== null && $row['product_description'] !== ''
                     ? (string) $row['product_description'] : null,
                 'metadata' => self::decodeJsonObject($row['product_metadata'] ?? null),
+                'subcategory_id' => isset($row['product_subcategory_id']) && $row['product_subcategory_id'] !== null && $row['product_subcategory_id'] !== ''
+                    ? (string) $row['product_subcategory_id']
+                    : null,
                 'brands' => [
                     'id' => (string) $row['brand_id_val'],
                     'name' => (string) $row['brand_name'],

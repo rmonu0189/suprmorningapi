@@ -37,6 +37,12 @@ final class CatalogController
         $productId = (string) $variant['product_id'];
         $siblings = CatalogRepository::findVariantsByProductId($productId);
 
+        $similarVariants = [];
+        $subcategoryId = $variant['products']['subcategory_id'] ?? null;
+        if (is_string($subcategoryId) && $subcategoryId !== '' && Uuid::isValid($subcategoryId)) {
+            $similarVariants = CatalogRepository::findSimilarVariantsBySubcategory($subcategoryId, $id, 10);
+        }
+
         $loveId = LoveRepository::findId($userId, $id);
         $loveWrap = $loveId !== null ? ['id' => $loveId, 'user_id' => $userId, 'variant_id' => $id] : null;
 
@@ -67,6 +73,7 @@ final class CatalogController
             'variant' => $variantOut,
             'loves' => $lovesList,
             'allVariants' => $siblings,
+            'similarVariants' => $similarVariants,
             'cartItem' => $cartItem,
             'totalCartCount' => $totalCartCount,
         ]);
