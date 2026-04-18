@@ -58,8 +58,8 @@ final class WalletController
         if ($amount <= 0) {
             throw new ValidationException('Invalid amount', ['amount' => 'Amount must be greater than 0.']);
         }
-        if ($amount > 1000000) {
-            throw new ValidationException('Invalid amount', ['amount' => 'Amount exceeds maximum allowed value.']);
+        if ($amount > 5000) {
+            throw new ValidationException('Invalid amount', ['amount' => 'Maximum ₹5,000 per wallet top-up transaction.']);
         }
 
         $amount = round($amount, 2);
