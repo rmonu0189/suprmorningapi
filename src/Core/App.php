@@ -399,6 +399,9 @@ final class App
         $router->add('DELETE', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
             $subscriptions->cancel($r);
         });
+        $router->add('GET', self::API_PREFIX . '/wallet/transactions', static function (Request $r) use ($wallet): void {
+            $wallet->transactions($r);
+        });
         $router->add('GET', self::API_PREFIX . '/wallet', static function (Request $r) use ($wallet): void {
             $wallet->show($r);
         });

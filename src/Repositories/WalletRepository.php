@@ -116,21 +116,37 @@ final class WalletRepository
         return true;
     }
 
+    public static function countTransactionsByUserId(string $userId): int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*) AS c FROM wallet_transactions WHERE user_id = :uid'
+        );
+        $stmt->execute(['uid' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return 0;
+        }
+
+        return (int) ($row['c'] ?? 0);
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
-    public static function findRecentTransactionsByUserId(string $userId, int $limit = 20): array
+    public static function findTransactionsByUserId(string $userId, int $limit, int $offset = 0): array
     {
         $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
         $stmt = Database::connection()->prepare(
             'SELECT id, user_id, order_id, type, source, amount, status, reference_id, note, created_at
              FROM wallet_transactions
              WHERE user_id = :uid
              ORDER BY created_at DESC, id DESC
-             LIMIT :lim'
+             LIMIT :lim OFFSET :off'
         );
         $stmt->bindValue('uid', $userId);
         $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('off', $offset, PDO::PARAM_INT);
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         if (!is_array($rows)) {
@@ -155,5 +171,13 @@ final class WalletRepository
             ];
         }
         return $out;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function findRecentTransactionsByUserId(string $userId, int $limit = 20): array
+    {
+        return self::findTransactionsByUserId($userId, $limit, 0);
     }
 }

@@ -32,10 +32,49 @@ final class WalletController
         }
 
         $wallet = WalletRepository::findByUserId($userId);
-        $transactions = WalletRepository::findRecentTransactionsByUserId($userId, 20);
+        $transactions = WalletRepository::findRecentTransactionsByUserId($userId, 5);
+        $totalTransactions = WalletRepository::countTransactionsByUserId($userId);
         Response::json([
             'wallet' => $wallet,
             'transactions' => $transactions,
+            'total_transactions' => $totalTransactions,
+        ]);
+    }
+
+    /** GET /v1/wallet/transactions?limit=&offset= */
+    public function transactions(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        if ($userId === '' || !Uuid::isValid($userId)) {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $limitRaw = $request->query('limit');
+        $offsetRaw = $request->query('offset');
+        $limit = is_string($limitRaw) ? (int) $limitRaw : 20;
+        $offset = is_string($offsetRaw) ? (int) $offsetRaw : 0;
+        if ($limit < 1) {
+            $limit = 20;
+        }
+        if ($limit > 100) {
+            $limit = 100;
+        }
+        if ($offset < 0) {
+            $offset = 0;
+        }
+
+        $total = WalletRepository::countTransactionsByUserId($userId);
+        $transactions = WalletRepository::findTransactionsByUserId($userId, $limit, $offset);
+        Response::json([
+            'transactions' => $transactions,
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
         ]);
     }
 
