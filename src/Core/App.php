@@ -114,8 +114,10 @@ require_once __DIR__ . '/../Repositories/FileRepository.php';
 require_once __DIR__ . '/../Repositories/SubscriptionRepository.php';
 require_once __DIR__ . '/../Repositories/SubscriptionOrderGenerationRepository.php';
 require_once __DIR__ . '/../Repositories/WalletRepository.php';
+require_once __DIR__ . '/../Repositories/WalletHoldRepository.php';
 require_once __DIR__ . '/../Repositories/WalletTopupRepository.php';
 require_once __DIR__ . '/../Services/RazorpayService.php';
+require_once __DIR__ . '/../Services/CommerceGatewayPaymentService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
 require_once __DIR__ . '/../Services/SubscriptionOrderGenerator.php';
 require_once __DIR__ . '/../Services/SearchScoring.php';
@@ -362,6 +364,12 @@ final class App
 
         $router->add('POST', self::API_PREFIX . '/orders/place', static function (Request $r) use ($orders): void {
             $orders->place($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/orders/payment/confirm', static function (Request $r) use ($orders): void {
+            $orders->confirmPayment($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/orders/payment/abandon', static function (Request $r) use ($orders): void {
+            $orders->abandonPayment($r);
         });
         $router->add('GET', self::API_PREFIX . '/orders', static function (Request $r) use ($orders): void {
             $orders->index($r);

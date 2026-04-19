@@ -119,19 +119,35 @@ final class SubscriptionOrderGenerationRepository
         ]);
     }
 
-    public static function markSkipped(string $deliveryDateYmd, string $userId, string $status): void
+    /**
+     * @param string|null $errorDetail Optional JSON or text (e.g. wallet shortfall); stored when status is skipped_insufficient_wallet.
+     */
+    public static function markSkipped(string $deliveryDateYmd, string $userId, string $status, ?string $errorDetail = null): void
     {
-        $allowed = ['skipped_no_items', 'skipped_no_address'];
+        $allowed = ['skipped_no_items', 'skipped_no_address', 'skipped_insufficient_wallet'];
         if (!in_array($status, $allowed, true)) {
             $status = 'skipped_no_items';
         }
+
+        $err = null;
+        if ($status === 'skipped_insufficient_wallet' && $errorDetail !== null) {
+            $msg = trim($errorDetail);
+            if ($msg !== '') {
+                if (strlen($msg) > 2000) {
+                    $msg = substr($msg, 0, 2000);
+                }
+                $err = $msg;
+            }
+        }
+
         $stmt = Database::connection()->prepare(
             'UPDATE subscription_order_generation
-             SET status = :st, order_id = NULL, error = NULL, updated_at = CURRENT_TIMESTAMP
+             SET status = :st, order_id = NULL, error = :err, updated_at = CURRENT_TIMESTAMP
              WHERE delivery_date = :dd AND user_id = :uid'
         );
         $stmt->execute([
             'st' => $status,
+            'err' => $err,
             'dd' => $deliveryDateYmd,
             'uid' => $userId,
         ]);
@@ -158,7 +174,7 @@ final class SubscriptionOrderGenerationRepository
     }
 
     /**
-     * @return array{delivery_date: string, total: int, pending: int, success: int, failed: int, skipped_no_items: int, skipped_no_address: int}
+     * @return array{delivery_date: string, total: int, pending: int, success: int, failed: int, skipped_no_items: int, skipped_no_address: int, skipped_insufficient_wallet: int}
      */
     public static function statusSummary(string $deliveryDateYmd): array
     {
@@ -176,6 +192,7 @@ final class SubscriptionOrderGenerationRepository
             'failed' => 0,
             'skipped_no_items' => 0,
             'skipped_no_address' => 0,
+            'skipped_insufficient_wallet' => 0,
         ];
         if (is_array($rows)) {
             foreach ($rows as $r) {
@@ -196,6 +213,7 @@ final class SubscriptionOrderGenerationRepository
             'failed' => (int) $counts['failed'],
             'skipped_no_items' => (int) $counts['skipped_no_items'],
             'skipped_no_address' => (int) $counts['skipped_no_address'],
+            'skipped_insufficient_wallet' => (int) $counts['skipped_insufficient_wallet'],
         ];
     }
 

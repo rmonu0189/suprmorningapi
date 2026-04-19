@@ -71,13 +71,17 @@ final class SubscriptionOrderGenerator
                     continue;
                 }
 
-                $createdOrderId = self::createSubscriptionOrderForUser($userId, $address, $variantQty, $deliveryDate);
-                if ($createdOrderId === null) {
+                $created = self::createSubscriptionOrderForUser($userId, $address, $variantQty, $deliveryDate);
+                if ($created['order_id'] !== null) {
+                    $usersCreated++;
+                    $ordersCreated++;
+                    continue;
+                }
+                if ($created['failure'] === 'insufficient_wallet') {
                     $usersSkippedInsufficientWallet++;
                     continue;
                 }
-                $usersCreated++;
-                $ordersCreated++;
+                $usersSkippedNoItems++;
             }
         }
 
@@ -96,7 +100,7 @@ final class SubscriptionOrderGenerator
     /**
      * Generate (or verify) a subscription order for a single user for the given delivery date.
      *
-     * @return array{status: 'success'|'skipped_no_items'|'skipped_no_address'|'skipped_insufficient_wallet', order_id: string|null, existing: bool}
+     * @return array{status: 'success'|'skipped_no_items'|'skipped_no_address'|'skipped_insufficient_wallet', order_id: string|null, existing: bool, skip_detail: string|null}
      */
     public static function generateForUser(string $userId, DateTimeImmutable $deliveryDate): array
     {
@@ -104,25 +108,34 @@ final class SubscriptionOrderGenerator
         $weekday = (int) $deliveryDate->format('w');
 
         if (\App\Repositories\OrderRepository::subscriptionOrderExistsForUserOnDate($userId, $dateYmd)) {
-            return ['status' => 'success', 'order_id' => null, 'existing' => true];
+            return ['status' => 'success', 'order_id' => null, 'existing' => true, 'skip_detail' => null];
         }
 
         $subs = SubscriptionRepository::findAllByUser($userId);
         $variantQty = self::subscriptionVariantQuantitiesForDate($subs, $deliveryDate, $weekday);
         if ($variantQty === []) {
-            return ['status' => 'skipped_no_items', 'order_id' => null, 'existing' => false];
+            return ['status' => 'skipped_no_items', 'order_id' => null, 'existing' => false, 'skip_detail' => null];
         }
 
         $address = AddressRepository::findFirstByUserId($userId);
         if ($address === null) {
-            return ['status' => 'skipped_no_address', 'order_id' => null, 'existing' => false];
+            return ['status' => 'skipped_no_address', 'order_id' => null, 'existing' => false, 'skip_detail' => null];
         }
 
-        $orderId = self::createSubscriptionOrderForUser($userId, $address, $variantQty, $deliveryDate);
-        if ($orderId === null) {
-            return ['status' => 'skipped_insufficient_wallet', 'order_id' => null, 'existing' => false];
+        $created = self::createSubscriptionOrderForUser($userId, $address, $variantQty, $deliveryDate);
+        if ($created['order_id'] !== null) {
+            return ['status' => 'success', 'order_id' => $created['order_id'], 'existing' => false, 'skip_detail' => null];
         }
-        return ['status' => 'success', 'order_id' => $orderId, 'existing' => false];
+        if ($created['failure'] === 'insufficient_wallet') {
+            return [
+                'status' => 'skipped_insufficient_wallet',
+                'order_id' => null,
+                'existing' => false,
+                'skip_detail' => $created['wallet_detail'],
+            ];
+        }
+
+        return ['status' => 'skipped_no_items', 'order_id' => null, 'existing' => false, 'skip_detail' => null];
     }
 
     /**
@@ -189,15 +202,45 @@ final class SubscriptionOrderGenerator
     }
 
     /**
+     * JSON for `subscription_order_generation.error` when status is skipped_insufficient_wallet.
+     * `reason` is `precheck` (before txn) or `debit_failed` (wallet row changed / race).
+     */
+    private static function walletShortfallJson(float $requiredInr, float $availableInr, string $reason): string
+    {
+        $required = round($requiredInr, 2);
+        $available = round($availableInr, 2);
+        $shortfall = round(max(0.0, $required - $available), 2);
+        $payload = [
+            'currency' => 'INR',
+            'required_inr' => $required,
+            'available_inr' => $available,
+            'shortfall_inr' => $shortfall,
+            'reason' => $reason,
+        ];
+        $enc = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        if (!is_string($enc) || $enc === '') {
+            return '{"currency":"INR","reason":"' . $reason . '"}';
+        }
+
+        return $enc;
+    }
+
+    /**
      * @param array<string, mixed> $address
      * @param array<string, int> $variantQty map variant_id => quantity
+     *
+     * @return array{
+     *   order_id: string|null,
+     *   failure: null|'insufficient_wallet'|'no_lines'|'total_too_small',
+     *   wallet_detail: string|null
+     * }
      */
     private static function createSubscriptionOrderForUser(
         string $userId,
         array $address,
         array $variantQty,
         DateTimeImmutable $deliveryDate
-    ): ?string {
+    ): array {
         $variantIds = array_keys($variantQty);
         $snapshots = CatalogRepository::snapshotVariantsForOrder($variantIds);
 
@@ -229,7 +272,7 @@ final class SubscriptionOrderGenerator
             $totalPrice += $price * $qty;
         }
         if ($lineItems === []) {
-            return null;
+            return ['order_id' => null, 'failure' => 'no_lines', 'wallet_detail' => null];
         }
 
         $lat = isset($address['latitude']) ? (float) $address['latitude'] : 0.0;
@@ -247,7 +290,24 @@ final class SubscriptionOrderGenerator
         $totalCharges = $chargeBreakdown['total'];
         $deliveryFee = $chargeBreakdown['delivery_fee'];
 
-        $grandTotal = $totalPrice + $totalCharges;
+        // Match checkout rounding (OrderPlacementService) so wallet debit amount matches order total.
+        $grandTotal = round($totalPrice + $totalCharges, 2);
+        if ($grandTotal < 0.01) {
+            return ['order_id' => null, 'failure' => 'total_too_small', 'wallet_detail' => null];
+        }
+
+        // Skip before opening a transaction when spendable balance clearly cannot cover the order.
+        $walletRow = WalletRepository::findByUserId($userId);
+        $spendable = (float) ($walletRow['balance'] ?? 0.0);
+        $needPaise = max(0, (int) round($grandTotal * 100));
+        $balancePaise = max(0, (int) floor(round($spendable * 100)));
+        if ($balancePaise < $needPaise) {
+            return [
+                'order_id' => null,
+                'failure' => 'insufficient_wallet',
+                'wallet_detail' => self::walletShortfallJson($grandTotal, $spendable, 'precheck'),
+            ];
+        }
 
         $orderId = Uuid::v4();
         $gatewayOrderId = 'sub_' . Uuid::v4();
@@ -310,7 +370,7 @@ final class SubscriptionOrderGenerator
             $debited = WalletRepository::debit(
                 $walletTxId,
                 $userId,
-                round($grandTotal, 2),
+                $grandTotal,
                 'subscription_order',
                 $orderId,
                 null,
@@ -320,7 +380,14 @@ final class SubscriptionOrderGenerator
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
                 }
-                return null;
+                $fresh = WalletRepository::findByUserId($userId);
+                $availAfter = (float) ($fresh['balance'] ?? 0.0);
+
+                return [
+                    'order_id' => null,
+                    'failure' => 'insufficient_wallet',
+                    'wallet_detail' => self::walletShortfallJson($grandTotal, $availAfter, 'debit_failed'),
+                ];
             }
 
             $gatewayOrderId = 'wallet_' . $walletTxId;
@@ -346,7 +413,11 @@ final class SubscriptionOrderGenerator
             throw $e;
         }
 
-        return $orderId;
+        return [
+            'order_id' => $orderId,
+            'failure' => null,
+            'wallet_detail' => null,
+        ];
     }
 
     /**

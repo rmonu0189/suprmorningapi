@@ -371,6 +371,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE TABLE IF NOT EXISTS wallets (
     user_id CHAR(36) NOT NULL,
     balance DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+    locked_balance DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
     currency VARCHAR(8) NOT NULL DEFAULT 'INR',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -460,6 +461,22 @@ CREATE TABLE IF NOT EXISTS orders (
     CONSTRAINT fk_orders_cart FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE SET NULL,
     CONSTRAINT fk_orders_address FOREIGN KEY (address_id) REFERENCES addresses (id) ON DELETE SET NULL,
     CONSTRAINT fk_orders_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wallet_holds (
+    id CHAR(36) NOT NULL,
+    user_id CHAR(36) NOT NULL,
+    order_id CHAR(36) NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'active',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_wallet_holds_order (order_id),
+    KEY idx_wallet_holds_user (user_id),
+    KEY idx_wallet_holds_status (status),
+    CONSTRAINT fk_wallet_holds_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wallet_holds_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS order_status_events (

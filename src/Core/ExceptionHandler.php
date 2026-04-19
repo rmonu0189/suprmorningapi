@@ -6,6 +6,7 @@ namespace App\Core;
 
 use App\Core\Exceptions\HttpException;
 use JsonException;
+use PDOException;
 use Throwable;
 
 final class ExceptionHandler
@@ -33,26 +34,56 @@ final class ExceptionHandler
             return;
         }
 
-        self::log($e);
+        self::logThrowable($e);
         Response::json(['error' => 'Internal Server Error'], 500);
     }
 
-    private static function log(Throwable $e): void
+    /**
+     * Append a full exception record to storage/logs/app.log (not PHP's default error_log destination).
+     * Use this before converting an exception into HttpException so operators can diagnose 500s.
+     *
+     * @param non-empty-string|null $context
+     */
+    public static function logThrowable(Throwable $e, ?string $context = null): void
     {
         $logDir = __DIR__ . '/../../storage/logs';
         if (!is_dir($logDir)) {
             mkdir($logDir, 0755, true);
         }
 
-        $line = sprintf(
-            "[%s] %s: %s in %s:%d\n",
+        $path = $logDir . '/app.log';
+        $prefix = ($context !== null && $context !== '') ? '[' . $context . '] ' : '';
+        $block = sprintf(
+            "[%s] %s%s: %s in %s:%d\n",
             gmdate('c'),
+            $prefix,
             $e::class,
             $e->getMessage(),
             $e->getFile(),
             $e->getLine()
         );
 
-        error_log($line, 3, $logDir . '/app.log');
+        if ($e instanceof PDOException) {
+            $info = $e->errorInfo;
+            if (is_array($info)) {
+                $enc = json_encode($info, JSON_UNESCAPED_UNICODE);
+                $block .= '  PDO errorInfo: ' . (is_string($enc) ? $enc : '[]') . "\n";
+            }
+        }
+
+        $prev = $e->getPrevious();
+        if ($prev instanceof Throwable) {
+            $block .= sprintf(
+                "  previous: %s: %s @ %s:%d\n",
+                $prev::class,
+                $prev->getMessage(),
+                $prev->getFile(),
+                $prev->getLine()
+            );
+        }
+
+        $block .= "\n";
+
+        error_log($block, 3, $path);
     }
 }

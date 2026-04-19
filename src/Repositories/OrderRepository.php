@@ -93,15 +93,27 @@ final class OrderRepository
     {
         // Atomically increments a single-row counter and returns the next code.
         // This must run inside the same transaction as order creation.
+        $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
         $pdo->exec('INSERT IGNORE INTO order_code_sequence (id, last_number) VALUES (1, 0)');
 
-        // Trick: LAST_INSERT_ID(expr) lets us read the updated value reliably on this connection.
+        if ($driver === 'sqlite') {
+            // MySQL LAST_INSERT_ID(expr) is not available; increment then read.
+            $pdo->exec('UPDATE order_code_sequence SET last_number = last_number + 1 WHERE id = 1');
+            $stmt = $pdo->query('SELECT last_number FROM order_code_sequence WHERE id = 1');
+            $n = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
+            if ($n < 1) {
+                $n = 1;
+            }
+
+            return self::formatOrderCodeFromNumber($n);
+        }
+
+        // MySQL: LAST_INSERT_ID(expr) reads the updated counter on this connection.
         $stmt = $pdo->prepare('UPDATE order_code_sequence SET last_number = LAST_INSERT_ID(last_number + 1) WHERE id = 1');
         $stmt->execute();
 
         $n = (int) $pdo->lastInsertId();
         if ($n < 1) {
-            // Extremely defensive fallback (should never happen).
             $n = 1;
         }
 
@@ -332,6 +344,43 @@ final class OrderRepository
         $stmt->execute(['ps' => $paymentStatus, 'go' => $gatewayOrderId]);
 
         return $stmt->rowCount() > 0;
+    }
+
+    public static function updatePaymentStatusByOrderId(string $orderId, string $paymentStatus): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE orders SET payment_status = :ps WHERE id = :id'
+        );
+        $stmt->execute(['ps' => $paymentStatus, 'id' => $orderId]);
+    }
+
+    /**
+     * Avoids clobbering a concurrent success transition; returns whether this call performed the update.
+     */
+    public static function updatePaymentStatusByOrderIdIfPending(string $orderId, string $paymentStatus): bool
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE orders SET payment_status = :ps WHERE id = :id AND payment_status = \'pending\''
+        );
+        $stmt->execute(['ps' => $paymentStatus, 'id' => $orderId]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    /** @return array<string, mixed>|null */
+    public static function findRawByGatewayOrderId(string $gatewayOrderId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT id, user_id, payment_status, grand_total, gateway_order_id
+             FROM orders
+             WHERE gateway_order_id = :go
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1'
+        );
+        $stmt->execute(['go' => $gatewayOrderId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
     }
 
     /**
@@ -1130,6 +1179,67 @@ final class OrderRepository
                 'grand_total_price' => $grandTotal,
                 'grand_total_mrp' => $totalMrp + $totalCharges,
             ],
+            'payment_summary' => self::buildPaymentSummaryForOrder((string) $r['id'], $r),
+            'payment_refs' => self::buildPaymentRefsForOrder((string) $r['id'], $r),
+        ];
+    }
+
+    /**
+     * Distinct gateway refs for wallet vs online (Razorpay order id). Mixed checkout has two legs after capture.
+     *
+     * @param array<string, mixed> $r
+     * @return array{wallet_gateway_order_id: ?string, razorpay_gateway_order_id: ?string}
+     */
+    private static function buildPaymentRefsForOrder(string $orderId, array $r): array
+    {
+        $from = PaymentRepository::successfulGatewayRefsForOrder($orderId);
+        $wallet = $from['wallet'];
+        $rz = $from['razorpay'];
+        $go = trim((string) ($r['gateway_order_id'] ?? ''));
+
+        if ($wallet === null || $wallet === '') {
+            $wallet = WalletRepository::findOrderDebitWalletRef($orderId);
+        }
+        if (($wallet === null || $wallet === '') && $go !== '' && str_starts_with($go, 'wallet_')) {
+            $wallet = $go;
+        }
+
+        if (($rz === null || $rz === '') && $go !== '' && !str_starts_with($go, 'wallet_')) {
+            $rz = $go;
+        }
+
+        return [
+            'wallet_gateway_order_id' => $wallet !== null && $wallet !== '' ? $wallet : null,
+            'razorpay_gateway_order_id' => $rz !== null && $rz !== '' ? $rz : null,
+        ];
+    }
+
+    /**
+     * Wallet vs Razorpay amounts for receipt-style UI. Mixed checkout may only store a Razorpay row;
+     * wallet portion is inferred from grand_total when gateway_name is mixed.
+     *
+     * @param array<string, mixed> $r
+     * @return array{grand_total_inr: float, wallet_inr: float, razorpay_inr: float}
+     */
+    private static function buildPaymentSummaryForOrder(string $orderId, array $r): array
+    {
+        $grandTotal = round((float) ($r['grand_total'] ?? 0), 2);
+        $gwName = strtolower(trim((string) ($r['gateway_name'] ?? '')));
+        $splits = PaymentRepository::sumSuccessfulByGatewayForOrder($orderId);
+        $wallet = round($splits['wallet'], 2);
+        $rz = round($splits['razorpay'], 2);
+
+        if ($wallet < 0.005 && $gwName === 'wallet') {
+            $wallet = $grandTotal;
+        }
+        if ($wallet < 0.005 && $gwName === 'mixed' && $rz > 0.005) {
+            $wallet = max(0.0, round($grandTotal - $rz, 2));
+        }
+
+        return [
+            'grand_total_inr' => $grandTotal,
+            'wallet_inr' => $wallet,
+            'razorpay_inr' => $rz,
         ];
     }
 

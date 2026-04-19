@@ -114,8 +114,8 @@ final class CartRepository
                     }
                 }
             }
-            if ($imgList === [] && $images !== '') {
-                $imgList = [$images];
+            if ($imgList === [] && isset($row['images']) && is_string($row['images']) && $row['images'] !== '') {
+                $imgList = [$row['images']];
             }
 
             $out[] = [

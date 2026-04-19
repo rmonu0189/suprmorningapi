@@ -1,0 +1,1 @@
+-- SQLite: subscription_order_generation.status is TEXT; no length change needed.

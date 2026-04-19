@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Core\Env;
 use App\Core\Exceptions\ValidationException;
 use App\Core\Request;
 use App\Core\Response;
@@ -12,6 +13,7 @@ use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\CartRepository;
 use App\Repositories\OrderRepository;
+use App\Services\CommerceGatewayPaymentService;
 use App\Services\OrderPlacementService;
 
 final class OrderController
@@ -34,8 +36,88 @@ final class OrderController
             throw new ValidationException('Invalid address_id', ['address_id' => 'Must be a valid UUID.']);
         }
 
-        $payload = OrderPlacementService::place($userId, $cartId, $addressId);
+        $useWallet = false;
+        if (array_key_exists('use_wallet', $body)) {
+            $raw = $body['use_wallet'];
+            $useWallet = $raw === true || $raw === 1 || $raw === '1' || (is_string($raw) && strtolower($raw) === 'true');
+        }
+
+        $payload = OrderPlacementService::place($userId, $cartId, $addressId, $useWallet);
         Response::json($payload, 201);
+    }
+
+    /** POST /v1/orders/payment/confirm — verify Razorpay payment client-side and finalize order + wallet hold (idempotent). */
+    public function confirmPayment(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        Validator::requireJsonContentType($request);
+        $body = $request->json();
+        $orderId = trim((string) ($body['order_id'] ?? ''));
+        $gatewayOrderId = trim((string) ($body['razorpay_order_id'] ?? ''));
+        $gatewayPaymentId = trim((string) ($body['razorpay_payment_id'] ?? ''));
+        $signature = trim((string) ($body['razorpay_signature'] ?? ''));
+
+        if ($orderId === '' || !Uuid::isValid($orderId)) {
+            throw new ValidationException('Invalid order_id', ['order_id' => 'Must be a valid UUID.']);
+        }
+        if ($gatewayOrderId === '' || $gatewayPaymentId === '' || $signature === '') {
+            throw new ValidationException('Invalid payment payload', ['payment' => 'Required Razorpay fields are missing.']);
+        }
+
+        $order = OrderRepository::findByIdForUser($orderId, $userId);
+        if ($order === null) {
+            Response::json(['error' => 'Not Found'], 404);
+            return;
+        }
+
+        $go = isset($order['gateway_order_id']) ? (string) $order['gateway_order_id'] : '';
+        if ($go === '' || $go !== $gatewayOrderId) {
+            throw new ValidationException('Order mismatch', ['razorpay_order_id' => 'Does not match this order.']);
+        }
+
+        $secret = Env::get('RAZORPAY_KEY_SECRET', '');
+        if (trim($secret) === '') {
+            Response::json(['error' => 'Payment gateway not configured'], 503);
+            return;
+        }
+
+        $payload = $gatewayOrderId . '|' . $gatewayPaymentId;
+        $expected = hash_hmac('sha256', $payload, $secret);
+        if (!hash_equals($expected, $signature)) {
+            throw new ValidationException('Invalid signature', ['razorpay_signature' => 'Signature verification failed.']);
+        }
+
+        CommerceGatewayPaymentService::onGatewayPaymentSuccess($gatewayOrderId);
+
+        $status = OrderRepository::findPaymentStatusByGatewayOrderId($gatewayOrderId);
+        Response::json([
+            'ok' => true,
+            'order_id' => $orderId,
+            'payment_status' => $status,
+        ]);
+    }
+
+    /** POST /v1/orders/payment/abandon — user exited Razorpay or gave up; fail pending payment and release wallet hold. */
+    public function abandonPayment(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        Validator::requireJsonContentType($request);
+        $body = $request->json();
+        $orderId = trim((string) ($body['order_id'] ?? ''));
+        if ($orderId === '' || !Uuid::isValid($orderId)) {
+            throw new ValidationException('Invalid order_id', ['order_id' => 'Must be a valid UUID.']);
+        }
+
+        CommerceGatewayPaymentService::abandonCheckout($orderId, $userId);
+        Response::json(['ok' => true]);
     }
 
     public function index(Request $request): void

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Database;
+use App\Core\ExceptionHandler;
+use App\Core\Env;
 use App\Core\Exceptions\HttpException;
 use App\Core\Exceptions\ValidationException;
 use App\Core\Uuid;
@@ -14,6 +16,7 @@ use App\Repositories\CartRepository;
 use App\Repositories\CatalogRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
+use App\Repositories\WalletHoldRepository;
 use App\Repositories\WalletRepository;
 use App\Repositories\WarehouseRepository;
 use DateTimeImmutable;
@@ -83,9 +86,9 @@ final class OrderPlacementService
     private const DEFAULT_DELIVERY_SLOT = '5 to 7 AM';
 
     /**
-     * @return array{order: array{id: string}, payment: array{mode:string,status:string,gateway_order_id:string|null}}
+     * @return array<string, mixed>
      */
-    public static function place(string $userId, string $cartId, string $addressId): array
+    public static function place(string $userId, string $cartId, string $addressId, bool $useWallet): array
     {
         $cart = CartRepository::findCartByIdForUser($cartId, $userId);
         if ($cart === null || $cart['status'] !== 'active') {
@@ -120,10 +123,17 @@ final class OrderPlacementService
         // Edge function sets order.tax to 0; tax-like rows still flow into total_charges / metadata.
         $tax = 0.0;
 
-        $grandTotal = $totalPrice + $totalCharges;
+        $grandTotal = round($totalPrice + $totalCharges, 2);
         if ($grandTotal < 0.01) {
             throw new HttpException('Order total too small for payment', 400);
         }
+
+        $walletRow = WalletRepository::findByUserId($userId);
+        $spendable = (float) ($walletRow['balance'] ?? 0.0);
+        $totalPaise = max(0, (int) round($grandTotal * 100));
+        [$walletAppliedPaise, $gatewayPaise] = self::computeWalletAndGatewayPaise($totalPaise, $spendable, $useWallet);
+        $walletApplied = round($walletAppliedPaise / 100, 2);
+        $gatewayAmount = round($gatewayPaise / 100, 2);
 
         $orderId = Uuid::v4();
         $deliveryDate = (new DateTimeImmutable('tomorrow'))->format('Y-m-d');
@@ -137,6 +147,20 @@ final class OrderPlacementService
             if (!isset($snapshots[$vid])) {
                 throw new HttpException('Variant no longer available', 400);
             }
+        }
+
+        $gatewayNameInsert = 'razorpay';
+        if ($walletAppliedPaise >= $totalPaise && $gatewayPaise === 0) {
+            $gatewayNameInsert = 'wallet';
+        } elseif ($walletAppliedPaise > 0 && $gatewayPaise > 0) {
+            $gatewayNameInsert = 'mixed';
+        }
+
+        if ($walletAppliedPaise > 0 && $gatewayPaise > 0 && !WalletRepository::supportsSplitCheckout()) {
+            throw new HttpException(
+                'Wallet + card checkout is not enabled on this server. Apply database migration 038, or pay the full amount with card only (turn off wallet).',
+                503
+            );
         }
 
         $pdo = Database::connection();
@@ -172,7 +196,7 @@ final class OrderPlacementService
                 $totalPrice,
                 $totalCharges,
                 null,
-                'wallet',
+                $gatewayNameInsert,
                 $otherChargesValue !== [] ? $otherChargesValue : null
             );
 
@@ -193,41 +217,123 @@ final class OrderPlacementService
                 );
             }
 
-            $walletTxId = Uuid::v4();
-            $debited = WalletRepository::debit(
-                $walletTxId,
-                $userId,
-                round($grandTotal, 2),
-                'order',
-                $orderId,
-                null,
-                'Order payment via wallet'
-            );
-            if (!$debited) {
-                throw new HttpException('Insufficient wallet balance', 400);
+            // Full wallet: debit and complete in one transaction.
+            // Use paise-derived amount so float balance vs grand_total rounding cannot fail the debit.
+            if ($gatewayPaise === 0 && $walletAppliedPaise > 0) {
+                $debitAmount = round($walletAppliedPaise / 100, 2);
+                if ($debitAmount < 0.01) {
+                    throw new HttpException('Could not compute payment split', 500);
+                }
+
+                $walletTxId = Uuid::v4();
+                $debited = WalletRepository::debit(
+                    $walletTxId,
+                    $userId,
+                    $debitAmount,
+                    'order',
+                    $orderId,
+                    null,
+                    'Order payment via wallet'
+                );
+                if (!$debited) {
+                    throw new HttpException('Insufficient wallet balance', 400);
+                }
+
+                $gatewayId = 'wallet_' . $walletTxId;
+                OrderRepository::updateGatewayOrderId($orderId, $gatewayId);
+                OrderRepository::updatePaymentStatusByOrderId($orderId, 'success');
+
+                PaymentRepository::insert(
+                    Uuid::v4(),
+                    $orderId,
+                    $userId,
+                    'wallet',
+                    $gatewayId,
+                    $debitAmount,
+                    'INR',
+                    'success'
+                );
+
+                $pdo->commit();
+
+                return [
+                    'order' => ['id' => $orderId],
+                    'payment' => [
+                        'mode' => 'wallet',
+                        'status' => 'success',
+                        'gateway_order_id' => $gatewayId,
+                        'wallet_applied' => $debitAmount,
+                        'gateway_amount' => 0.0,
+                        'amount_paise' => 0,
+                        'currency' => 'INR',
+                        'razorpay_key_id' => null,
+                    ],
+                ];
             }
 
-            $gatewayId = 'wallet_' . $walletTxId;
-            OrderRepository::updateGatewayOrderId($orderId, $gatewayId);
-            OrderRepository::updatePaymentStatusByGatewayOrderId($gatewayId, 'success');
+            // Razorpay (pure or mixed).
+            if ($gatewayPaise <= 0) {
+                throw new HttpException('Could not compute payment split', 500);
+            }
+
+            $receipt = 'ord_' . str_replace('-', '', substr($orderId, 0, 18));
+            try {
+                $rz = RazorpayService::createOrder($gatewayPaise, $receipt, 'INR');
+            } catch (HttpException $e) {
+                throw $e;
+            } catch (\Throwable) {
+                throw new HttpException('Could not start payment', 502);
+            }
+
+            $rzOrderId = isset($rz['id']) && is_string($rz['id']) ? $rz['id'] : '';
+            if ($rzOrderId === '') {
+                throw new HttpException('Could not start payment', 502);
+            }
+
+            if ($walletAppliedPaise > 0) {
+                $holdId = Uuid::v4();
+                if (!WalletRepository::lockSpendableToLocked($userId, $walletApplied)) {
+                    throw new HttpException('Insufficient wallet balance', 400);
+                }
+                WalletHoldRepository::insertActive($holdId, $userId, $orderId, $walletApplied);
+            }
+
+            OrderRepository::updateGatewayOrderId($orderId, $rzOrderId);
 
             PaymentRepository::insert(
                 Uuid::v4(),
                 $orderId,
                 $userId,
-                'wallet',
-                $gatewayId,
-                $grandTotal,
+                'razorpay',
+                $rzOrderId,
+                $gatewayAmount,
                 'INR',
-                'success'
+                'pending'
             );
 
             $pdo->commit();
+
+            $keyId = Env::get('RAZORPAY_KEY_ID', '');
+
+            return [
+                'order' => ['id' => $orderId],
+                'payment' => [
+                    'mode' => $walletAppliedPaise > 0 ? 'mixed' : 'razorpay',
+                    'status' => 'pending',
+                    'gateway_order_id' => $rzOrderId,
+                    'wallet_applied' => $walletApplied,
+                    'gateway_amount' => $gatewayAmount,
+                    'amount_paise' => $gatewayPaise,
+                    'currency' => 'INR',
+                    'razorpay_key_id' => trim($keyId) !== '' ? $keyId : null,
+                ],
+            ];
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            throw new HttpException('Could not create order', 500);
+            ExceptionHandler::logThrowable($e, 'OrderPlacementService::place');
+            throw new HttpException('Could not create order', 500, self::orderPlaceFailureDebugContext($e));
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -235,17 +341,71 @@ final class OrderPlacementService
             if ($e instanceof HttpException || $e instanceof ValidationException) {
                 throw $e;
             }
-            throw new HttpException('Could not create order', 500);
+            ExceptionHandler::logThrowable($e, 'OrderPlacementService::place');
+            throw new HttpException('Could not create order', 500, self::orderPlaceFailureDebugContext($e));
+        }
+    }
+
+    /**
+     * When APP_DEBUG is true, JSON responses include these keys so operators can see the real error
+     * without reading server logs. Never enable APP_DEBUG on public production.
+     *
+     * @return array<string, string|int>
+     */
+    private static function orderPlaceFailureDebugContext(\Throwable $e): array
+    {
+        $raw = Env::get('APP_DEBUG', 'false');
+        $debug = strtolower(trim((string) $raw)) === 'true' || (string) $raw === '1';
+        if (!$debug) {
+            return [];
         }
 
-        return [
-            'order' => ['id' => $orderId],
-            'payment' => [
-                'mode' => 'wallet',
-                'status' => 'success',
-                'gateway_order_id' => $gatewayId,
-            ],
-        ];
+        $ctx = ['detail' => $e->getMessage()];
+        if ($e instanceof PDOException) {
+            $info = $e->errorInfo;
+            if (is_array($info)) {
+                if (isset($info[0]) && is_scalar($info[0])) {
+                    $ctx['sqlstate'] = (string) $info[0];
+                }
+                if (isset($info[1]) && is_scalar($info[1])) {
+                    $ctx['driver_code'] = (int) $info[1];
+                }
+            }
+        }
+
+        return $ctx;
+    }
+
+    /**
+     * @return array{0: int, 1: int} [walletAppliedPaise, gatewayPaise]
+     */
+    private static function computeWalletAndGatewayPaise(int $totalPaise, float $spendableBalance, bool $useWallet): array
+    {
+        if ($totalPaise <= 0) {
+            return [0, 0];
+        }
+
+        $balancePaise = max(0, (int) floor(round($spendableBalance * 100)));
+        $walletPaise = 0;
+        if ($useWallet && $balancePaise > 0) {
+            $walletPaise = min($balancePaise, $totalPaise);
+        }
+        $gatewayPaise = max(0, $totalPaise - $walletPaise);
+
+        // When the card/UPI remainder would be below ₹1 but the order total is at least ₹1,
+        // shift spend from wallet so the gateway charges at least ₹1 (Razorpay/UI practical minimum).
+        if ($gatewayPaise > 0 && $gatewayPaise < 100 && $totalPaise >= 100) {
+            $deficit = 100 - $gatewayPaise;
+            if ($walletPaise >= $deficit) {
+                $walletPaise -= $deficit;
+                $gatewayPaise = 100;
+            } else {
+                $gatewayPaise = $totalPaise;
+                $walletPaise = 0;
+            }
+        }
+
+        return [$walletPaise, $gatewayPaise];
     }
 
     /**

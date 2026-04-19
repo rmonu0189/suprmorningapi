@@ -7,13 +7,12 @@ namespace App\Controllers;
 use App\Core\Env;
 use App\Core\Request;
 use App\Core\Response;
-use App\Repositories\OrderRepository;
 use App\Repositories\PaymentEventRepository;
-use App\Repositories\PaymentRepository;
 use App\Repositories\WalletRepository;
 use App\Repositories\WalletTopupRepository;
 use App\Core\Database;
 use App\Core\Uuid;
+use App\Services\CommerceGatewayPaymentService;
 
 final class RazorpayWebhookController
 {
@@ -91,13 +90,11 @@ final class RazorpayWebhookController
         }
 
         if ($event === 'payment.captured' || $event === 'order.paid') {
-            OrderRepository::updatePaymentStatusByGatewayOrderId($orderId, 'success');
-            PaymentRepository::updateStatusByGatewayOrderId($orderId, 'success');
             self::creditWalletTopupIfApplicable($orderId, self::extractRazorpayPaymentId($event, $payload));
+            CommerceGatewayPaymentService::onGatewayPaymentSuccess($orderId);
         } elseif ($event === 'payment.failed') {
-            OrderRepository::updatePaymentStatusByGatewayOrderId($orderId, 'failed');
-            PaymentRepository::updateStatusByGatewayOrderId($orderId, 'failed');
             WalletTopupRepository::markFailedByGatewayOrderId($orderId, self::extractRazorpayPaymentId($event, $payload));
+            CommerceGatewayPaymentService::onGatewayPaymentFailed($orderId);
         }
 
         Response::json(['ok' => true]);

@@ -71,10 +71,21 @@ final class AdminSubscriptionOrdersController
                     SubscriptionOrderGenerationRepository::markSuccess($deliveryDateYmd, $uid, $res['order_id']);
                 } elseif ($res['status'] === 'skipped_no_address') {
                     SubscriptionOrderGenerationRepository::markSkipped($deliveryDateYmd, $uid, 'skipped_no_address');
+                } elseif ($res['status'] === 'skipped_insufficient_wallet') {
+                    $detail = isset($res['skip_detail']) && is_string($res['skip_detail']) ? $res['skip_detail'] : null;
+                    SubscriptionOrderGenerationRepository::markSkipped($deliveryDateYmd, $uid, 'skipped_insufficient_wallet', $detail);
+                } elseif ($res['status'] === 'skipped_no_items') {
+                    SubscriptionOrderGenerationRepository::markSkipped($deliveryDateYmd, $uid, 'skipped_no_items');
                 } else {
                     SubscriptionOrderGenerationRepository::markSkipped($deliveryDateYmd, $uid, 'skipped_no_items');
                 }
-                $processed[] = ['user_id' => $uid, 'status' => $res['status'], 'order_id' => $res['order_id'], 'existing' => (bool) $res['existing']];
+                $processed[] = [
+                    'user_id' => $uid,
+                    'status' => $res['status'],
+                    'order_id' => $res['order_id'],
+                    'existing' => (bool) $res['existing'],
+                    'skip_detail' => isset($res['skip_detail']) && is_string($res['skip_detail']) ? $res['skip_detail'] : null,
+                ];
             } catch (\Throwable $e) {
                 SubscriptionOrderGenerationRepository::markFailed($deliveryDateYmd, $uid, $e->getMessage());
                 $processed[] = ['user_id' => $uid, 'status' => 'failed', 'order_id' => null, 'existing' => false];
