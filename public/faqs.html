@@ -8,45 +8,63 @@
     body {
       margin: 0;
       padding: 24px;
-      font-family: Arial, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       line-height: 1.6;
-      color: #1f2937;
-      background: #f8fafc;
+      color: #374151;
+      background: #f3f4f6;
     }
     .container {
-      max-width: 860px;
+      max-width: 800px;
       margin: 0 auto;
       background: #ffffff;
       border: 1px solid #e5e7eb;
-      border-radius: 10px;
-      padding: 28px;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
-    h1, h2 {
+    h1 {
       margin-top: 0;
       color: #111827;
+      font-size: 28px;
+      border-bottom: 2px solid #3b82f6;
+      padding-bottom: 12px;
+      display: inline-block;
     }
     h2 {
-      margin-top: 24px;
+      margin-top: 32px;
       font-size: 20px;
+      color: #1f2937;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 8px;
     }
     p {
       margin: 8px 0;
     }
     .qa {
-      margin: 14px 0 18px;
-      padding: 12px 14px;
+      margin: 16px 0;
+      padding: 16px;
       border: 1px solid #e5e7eb;
       border-radius: 8px;
-      background: #fcfcfd;
+      background: #f9fafb;
+      transition: box-shadow 0.2s ease-in-out;
+    }
+    .qa:hover {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
     .q {
-      font-weight: 700;
-      margin-bottom: 6px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+    .a {
+      color: #4b5563;
+      font-size: 15px;
     }
     .meta {
       color: #6b7280;
       font-size: 14px;
-      margin-bottom: 18px;
+      margin-bottom: 24px;
     }
   </style>
 </head>
@@ -55,40 +73,54 @@
     <h1>Frequently Asked Questions (FAQs)</h1>
     <p class="meta">Last updated: April 21, 2026</p>
 
+    <!-- General Section -->
+    <h2>General Queries</h2>
     <div class="qa">
-      <p class="q">How do I place an order?</p>
-      <p>Select products, add to cart, choose your address and delivery slot, then complete payment.</p>
+      <p class="q">What is SuprMorning?</p>
+      <p class="a">SuprMorning is your daily micro-delivery service for milk, fresh fruits, vegetables, bread, and other daily essentials. We deliver your orders fresh to your doorstep every morning before 7:00 AM.</p>
+    </div>
+    <div class="qa">
+      <p class="q">In which cities is SuprMorning available?</p>
+      <p class="a">Currently, we are serving select areas. Please enter your location or PIN code in our app to check if we deliver to your neighborhood.</p>
     </div>
 
+    <!-- Orders & Deliveries -->
+    <h2>Orders & Deliveries</h2>
     <div class="qa">
-      <p class="q">Can I edit or cancel my order?</p>
-      <p>You can edit or cancel only within the allowed time window shown in your order details.</p>
+      <p class="q">By what time should I place an order for next day delivery?</p>
+      <p class="a">You can add, modify, or cancel your orders until 11:45 PM every night for delivery the next morning.</p>
+    </div>
+    <div class="qa">
+      <p class="q">Is there any minimum order value?</p>
+      <p class="a">No! There is no minimum order value. Whether you need a single packet of milk or a whole month's groceries, we will deliver it to your doorstep with no fuss.</p>
+    </div>
+    <div class="qa">
+      <p class="q">Are there any delivery charges?</p>
+      <p class="a">We do not charge any delivery fee for our daily subscription deliveries. However, a small delivery fee might be applicable on one-time orders below a certain value.</p>
     </div>
 
+    <!-- Payments & Wallet -->
+    <h2>Wallet & Payments</h2>
     <div class="qa">
-      <p class="q">What payment methods are supported?</p>
-      <p>Available payment methods are shown at checkout and may vary by region and partner availability.</p>
+      <p class="q">How does SuprMorning Wallet work?</p>
+      <p class="a">SuprMorning runs on a prepaid wallet system. You recharge your SuprMorning wallet using UPI, credit/debit cards, or net banking, and your daily bills are automatically deducted from this wallet balance.</p>
+    </div>
+    <div class="qa">
+      <p class="q">Can I get a refund for my SuprMorning wallet balance?</p>
+      <p class="a">Yes, if you wish to close your account, your remaining wallet balance will be refunded to your original payment source within 5-7 business days.</p>
     </div>
 
+    <!-- Subscription & Vacations -->
+    <h2>Managing Subscriptions</h2>
     <div class="qa">
-      <p class="q">How can I track my order?</p>
-      <p>Go to your orders section in the app to view order status and recent updates.</p>
+      <p class="q">How do I start a subscription?</p>
+      <p class="a">Find the product you need daily (like milk or bread), select "Subscribe," and choose an interval (Daily, Alternate Days, or Custom Days). The product will be auto-added to your cart for those days.</p>
     </div>
-
     <div class="qa">
-      <p class="q">What if an item is missing or damaged?</p>
-      <p>Report the issue through app support with your order ID for quick assistance.</p>
+      <p class="q">I am going on a vacation. How do I pause my deliveries?</p>
+      <p class="a">You can easily pause all your deliveries using the "Vacation Mode" feature in the app. Just select your start and end dates, and no deliveries will be made (and no amount deducted) during this period.</p>
     </div>
-
-    <div class="qa">
-      <p class="q">How does subscription delivery work?</p>
-      <p>You can subscribe to eligible products and manage schedule or quantity from your subscription settings.</p>
-    </div>
-
-    <div class="qa">
-      <p class="q">How do I contact support?</p>
-      <p>Use the support/help section in the app to reach our team.</p>
-    </div>
+    
   </main>
 </body>
 </html>
