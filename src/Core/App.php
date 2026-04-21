@@ -299,6 +299,9 @@ final class App
         $router->add('PATCH', self::API_PREFIX . '/auth/me', static function (Request $r) use ($auth): void {
             $auth->patchMe($r);
         });
+        $router->add('POST', self::API_PREFIX . '/auth/delete-account', static function (Request $r) use ($auth): void {
+            $auth->deleteAccount($r);
+        });
 
         $router->add('GET', self::API_PREFIX . '/cart/charges', static function (Request $r) use ($cart): void {
             $cart->charges($r);

@@ -71,4 +71,16 @@ final class WalletHoldRepository
         );
         $stmt->execute(['st' => $status, 'id' => $holdId]);
     }
+
+    public static function countActiveByUserId(string $userId): int
+    {
+        if (!self::isAvailable()) {
+            return 0;
+        }
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*) FROM wallet_holds WHERE user_id = :uid AND status = :st'
+        );
+        $stmt->execute(['uid' => $userId, 'st' => 'active']);
+        return (int) $stmt->fetchColumn();
+    }
 }

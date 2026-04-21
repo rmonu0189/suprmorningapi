@@ -1293,4 +1293,29 @@ final class OrderRepository
             'phone' => isset($row['phone']) && $row['phone'] !== '' ? (string) $row['phone'] : null,
         ];
     }
+
+    public static function countInProgressByUserId(string $userId): int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*)
+             FROM orders
+             WHERE user_id = :uid
+               AND (
+                 payment_status = :payment_pending
+                 OR order_status IN (:created, :placed, :processing, :packed, :picked, :shipped, :out_for_delivery)
+               )'
+        );
+        $stmt->execute([
+            'uid' => $userId,
+            'payment_pending' => 'pending',
+            'created' => 'created',
+            'placed' => 'placed',
+            'processing' => 'processing',
+            'packed' => 'packed',
+            'picked' => 'picked',
+            'shipped' => 'shipped',
+            'out_for_delivery' => 'out_for_delivery',
+        ]);
+        return (int) $stmt->fetchColumn();
+    }
 }

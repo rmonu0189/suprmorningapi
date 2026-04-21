@@ -193,6 +193,25 @@ final class AuthController
         Response::json(['user' => $user]);
     }
 
+    public function deleteAccount(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+
+        Validator::requireJsonContentType($request);
+        $body = $request->json();
+        $sub = (string) ($claims['sub'] ?? '');
+        if ($sub === '') {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $payload = $this->auth->deleteAccount($sub, $body);
+        Response::json($payload);
+    }
+
     /** @param array<string, mixed> $body */
     private function resolveUserAgent(Request $request, array $body): ?string
     {

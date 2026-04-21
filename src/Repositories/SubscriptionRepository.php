@@ -191,6 +191,15 @@ final class SubscriptionRepository
         return $stmt->rowCount() > 0;
     }
 
+    public static function countByUserId(string $userId): int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*) FROM subscriptions WHERE user_id = :uid'
+        );
+        $stmt->execute(['uid' => $userId]);
+        return (int) $stmt->fetchColumn();
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Env;
+use App\Core\Database;
 use App\Core\Exceptions\HttpException;
 use App\Core\Exceptions\ValidationException;
 use App\Core\Jwt;
 use App\Core\Phone;
 use App\Core\Uuid;
+use App\Repositories\OrderRepository;
 use App\Repositories\PhoneOtpChallengeRepository;
 use App\Repositories\RefreshTokenRepository;
+use App\Repositories\SubscriptionOrderGenerationRepository;
+use App\Repositories\SubscriptionRepository;
 use App\Repositories\UserRepository;
+use App\Repositories\WalletHoldRepository;
+use App\Repositories\WalletRepository;
 use DateTimeImmutable;
 use PDOException;
 
@@ -178,6 +184,106 @@ final class AuthService
 
         $hash = hash('sha256', $rawRefreshToken);
         RefreshTokenRepository::deleteByHash($hash);
+    }
+
+    /**
+     * @param array<string,mixed> $body
+     * @return array{ok: true}
+     */
+    public function deleteAccount(string $userId, array $body): array
+    {
+        $reasonCode = trim((string) ($body['reason_code'] ?? ''));
+        if ($reasonCode === '' || !$this->isValidDeleteReasonCode($reasonCode)) {
+            throw new ValidationException('Invalid reason_code', [
+                'reason_code' => 'Provide a valid reason code.',
+            ]);
+        }
+
+        $reasonText = null;
+        if (array_key_exists('reason_text', $body) && $body['reason_text'] !== null) {
+            $reasonText = trim((string) $body['reason_text']);
+            if ($reasonText === '') {
+                $reasonText = null;
+            }
+            if ($reasonText !== null && strlen($reasonText) > 500) {
+                throw new ValidationException('Invalid reason_text', [
+                    'reason_text' => 'Must be at most 500 characters.',
+                ]);
+            }
+        }
+        if ($reasonCode === 'other' && ($reasonText === null || $reasonText === '')) {
+            throw new ValidationException('Invalid reason_text', [
+                'reason_text' => 'Please share details for "other" reason.',
+            ]);
+        }
+
+        $inProgressOrders = OrderRepository::countInProgressByUserId($userId);
+        if ($inProgressOrders > 0) {
+            throw new HttpException('You have an active order flow. Please complete it before deleting account.', 409, [
+                'block_code' => 'ACTIVE_ORDER_FLOW',
+            ]);
+        }
+
+        $wallet = WalletRepository::findByUserId($userId);
+        if (((float) ($wallet['balance'] ?? 0.0)) > 0.0) {
+            throw new HttpException('Wallet balance remains. Please use your wallet balance before deleting account.', 409, [
+                'block_code' => 'WALLET_BALANCE_REMAINS',
+            ]);
+        }
+        if (((float) ($wallet['locked_balance'] ?? 0.0)) > 0.0) {
+            throw new HttpException('Wallet locked balance remains. Please wait for payment processing to finish.', 409, [
+                'block_code' => 'WALLET_LOCKED_BALANCE_REMAINS',
+            ]);
+        }
+
+        if (WalletHoldRepository::countActiveByUserId($userId) > 0) {
+            throw new HttpException('Wallet hold is active for a pending order.', 409, [
+                'block_code' => 'ACTIVE_WALLET_HOLD',
+            ]);
+        }
+
+        if (SubscriptionRepository::countByUserId($userId) > 0) {
+            throw new HttpException('You have active subscriptions. Please cancel them before deleting account.', 409, [
+                'block_code' => 'ACTIVE_SUBSCRIPTION',
+            ]);
+        }
+
+        if (SubscriptionOrderGenerationRepository::countPendingByUserId($userId) > 0) {
+            throw new HttpException('Subscription order generation is in progress. Please try again later.', 409, [
+                'block_code' => 'PENDING_SUBSCRIPTION_GENERATION',
+            ]);
+        }
+
+        $contact = UserRepository::findContactById($userId);
+        if ($contact === null) {
+            throw new HttpException('Unauthorized', 401);
+        }
+
+        $archivedPhone = $this->buildArchivedPhone((string) ($contact['phone'] ?? ''), $userId);
+        $originalPhone = (string) ($contact['phone'] ?? '');
+        $originalEmail = isset($contact['email']) && is_string($contact['email']) ? $contact['email'] : null;
+
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            UserRepository::deactivateAndArchiveIdentity(
+                $userId,
+                $archivedPhone,
+                $originalPhone !== '' ? $originalPhone : null,
+                $originalEmail,
+                $reasonCode,
+                $reasonText
+            );
+            RefreshTokenRepository::deleteByUserId($userId);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+
+        return ['ok' => true];
     }
 
     private function completeRegisterAfterOtp(
@@ -458,5 +564,25 @@ final class AuthService
         }
 
         return $s;
+    }
+
+    private function isValidDeleteReasonCode(string $reasonCode): bool
+    {
+        return in_array($reasonCode, [
+            'privacy_concerns',
+            'not_useful',
+            'too_expensive',
+            'switching_service',
+            'technical_issues',
+            'other',
+        ], true);
+    }
+
+    private function buildArchivedPhone(string $phone, string $userId): string
+    {
+        $suffix = '#' . substr($userId, 0, 8);
+        $prefixLen = max(1, 20 - strlen($suffix));
+        $prefix = substr($phone, 0, $prefixLen);
+        return $prefix . $suffix;
     }
 }

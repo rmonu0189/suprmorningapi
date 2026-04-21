@@ -269,6 +269,15 @@ final class SubscriptionOrderGenerationRepository
         return $out;
     }
 
+    public static function countPendingByUserId(string $userId): int
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*) FROM subscription_order_generation WHERE user_id = :uid AND status = :st'
+        );
+        $stmt->execute(['uid' => $userId, 'st' => 'pending']);
+        return (int) $stmt->fetchColumn();
+    }
+
     private static function upsertPending(string $deliveryDateYmd, string $userId, string $runId): bool
     {
         $pdo = Database::connection();

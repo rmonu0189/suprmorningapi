@@ -159,6 +159,57 @@ final class UserRepository
         ]);
     }
 
+    /** @return array{phone:string,country_code:string,email:?string}|null */
+    public static function findContactById(string $id): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT phone, country_code, email FROM users WHERE id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return null;
+        }
+        return [
+            'phone' => (string) ($row['phone'] ?? ''),
+            'country_code' => isset($row['country_code']) && $row['country_code'] !== null && $row['country_code'] !== ''
+                ? (string) $row['country_code']
+                : self::DEFAULT_COUNTRY_CODE,
+            'email' => isset($row['email']) && $row['email'] !== '' ? (string) $row['email'] : null,
+        ];
+    }
+
+    public static function deactivateAndArchiveIdentity(
+        string $id,
+        string $archivedPhone,
+        ?string $originalPhone,
+        ?string $originalEmail,
+        string $reasonCode,
+        ?string $reasonText
+    ): void {
+        $stmt = Database::connection()->prepare(
+            'UPDATE users
+             SET
+                is_active = 0,
+                original_phone = :original_phone,
+                original_email = :original_email,
+                phone = :archived_phone,
+                email = NULL,
+                deactivated_at = CURRENT_TIMESTAMP,
+                deactivation_reason_code = :reason_code,
+                deactivation_reason_text = :reason_text
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            'id' => $id,
+            'archived_phone' => $archivedPhone,
+            'original_phone' => $originalPhone,
+            'original_email' => $originalEmail,
+            'reason_code' => $reasonCode,
+            'reason_text' => $reasonText,
+        ]);
+    }
+
     /**
      * Escape `%` and `_` for SQL LIKE patterns.
      */

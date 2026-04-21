@@ -66,4 +66,10 @@ final class RefreshTokenRepository
         $stmt = Database::connection()->prepare('DELETE FROM refresh_tokens WHERE token_hash = :h');
         $stmt->execute(['h' => $tokenHash]);
     }
+
+    public static function deleteByUserId(string $userId): void
+    {
+        $stmt = Database::connection()->prepare('DELETE FROM refresh_tokens WHERE user_id = :uid');
+        $stmt->execute(['uid' => $userId]);
+    }
 }
