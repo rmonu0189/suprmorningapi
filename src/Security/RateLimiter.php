@@ -4,78 +4,109 @@ declare(strict_types=1);
 
 namespace App\Security;
 
+use PDO;
+
 final class RateLimiter
 {
+    private static ?PDO $db = null;
+
+    private static function getDb(): PDO
+    {
+        if (self::$db === null) {
+            $dir = __DIR__ . '/../../storage';
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            $file = $dir . '/ratelimits.sqlite';
+            $exists = is_file($file);
+            self::$db = new PDO('sqlite:' . $file);
+            self::$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            self::$db->setAttribute(PDO::ATTR_TIMEOUT, 5); // 5 sec wait for lock
+            if (!$exists) {
+                self::$db->exec('CREATE TABLE IF NOT EXISTS rate_limits (bucket TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at INTEGER NOT NULL)');
+            }
+        }
+        return self::$db;
+    }
+
     public function consume(string $bucket, int $maxRequests, int $windowSeconds): array
     {
+        $db = self::getDb();
         $now = time();
-        $path = $this->bucketPath($bucket);
-        $state = $this->readState($path);
+        $hash = hash('sha256', $bucket);
 
-        if ($state['reset_at'] <= $now) {
-            $state = ['count' => 0, 'reset_at' => $now + $windowSeconds];
+        // Optional garbage collection: randomly delete old records (1% chance)
+        if (random_int(1, 100) === 1) {
+            $db->exec('DELETE FROM rate_limits WHERE reset_at < strftime("%s", "now")');
         }
 
-        if ($state['count'] >= $maxRequests) {
-            return [
-                'allowed' => false,
-                'remaining' => 0,
-                'retry_after' => max(1, $state['reset_at'] - $now),
-            ];
+        for ($i = 0; $i < 3; $i++) {
+            try {
+                $db->beginTransaction();
+                $stmt = $db->prepare('SELECT count, reset_at FROM rate_limits WHERE bucket = :b');
+                $stmt->execute(['b' => $hash]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($row) {
+                    $count = (int) $row['count'];
+                    $resetAt = (int) $row['reset_at'];
+                    if ($resetAt <= $now) {
+                        $count = 0;
+                        $resetAt = $now + $windowSeconds;
+                    }
+                } else {
+                    $count = 0;
+                    $resetAt = $now + $windowSeconds;
+                    $stmt = $db->prepare('INSERT INTO rate_limits (bucket, count, reset_at) VALUES (:b, :c, :r)');
+                    $stmt->execute(['b' => $hash, 'c' => $count, 'r' => $resetAt]);
+                }
+
+                if ($count >= $maxRequests) {
+                    $db->commit();
+                    return [
+                        'allowed' => false,
+                        'remaining' => 0,
+                        'retry_after' => max(1, $resetAt - $now),
+                    ];
+                }
+
+                $count++;
+                $stmt = $db->prepare('UPDATE rate_limits SET count = :c, reset_at = :r WHERE bucket = :b');
+                $stmt->execute(['c' => $count, 'r' => $resetAt, 'b' => $hash]);
+                
+                $db->commit();
+
+                return [
+                    'allowed' => true,
+                    'remaining' => max(0, $maxRequests - $count),
+                    'retry_after' => max(1, $resetAt - $now),
+                ];
+            } catch (\PDOException $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                // If it's a database lock 'database is locked' (code 5 or HY000), retry
+                if (str_contains(strtolower($e->getMessage()), 'locked')) {
+                    usleep(50000); // 50ms
+                    continue;
+                }
+                break; // Stop and fail open
+            }
         }
 
-        $state['count']++;
-        $this->writeState($path, $state);
-
-        return [
-            'allowed' => true,
-            'remaining' => max(0, $maxRequests - $state['count']),
-            'retry_after' => max(1, $state['reset_at'] - $now),
-        ];
+        // Fail open
+        return ['allowed' => true, 'remaining' => 1, 'retry_after' => 1];
     }
 
     public function reset(string $bucket): void
     {
-        $path = $this->bucketPath($bucket);
-        if (is_file($path)) {
-            unlink($path);
+        try {
+            $db = self::getDb();
+            $hash = hash('sha256', $bucket);
+            $stmt = $db->prepare('DELETE FROM rate_limits WHERE bucket = :b');
+            $stmt->execute(['b' => $hash]);
+        } catch (\Throwable) {
+            // Ignore failure on reset
         }
-    }
-
-    private function bucketPath(string $bucket): string
-    {
-        $dir = __DIR__ . '/../../storage/ratelimits';
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        return $dir . '/' . hash('sha256', $bucket) . '.json';
-    }
-
-    private function readState(string $path): array
-    {
-        if (!is_file($path)) {
-            return ['count' => 0, 'reset_at' => 0];
-        }
-
-        $raw = file_get_contents($path);
-        if (!is_string($raw) || $raw === '') {
-            return ['count' => 0, 'reset_at' => 0];
-        }
-
-        $decoded = json_decode($raw, true);
-        if (!is_array($decoded)) {
-            return ['count' => 0, 'reset_at' => 0];
-        }
-
-        return [
-            'count' => (int) ($decoded['count'] ?? 0),
-            'reset_at' => (int) ($decoded['reset_at'] ?? 0),
-        ];
-    }
-
-    private function writeState(string $path, array $state): void
-    {
-        file_put_contents($path, json_encode($state, JSON_THROW_ON_ERROR), LOCK_EX);
     }
 }

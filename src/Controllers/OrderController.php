@@ -180,12 +180,24 @@ final class OrderController
         if ($claims === null) {
             return;
         }
+        $userId = (string) ($claims['sub'] ?? '');
         $go = trim((string) ($request->query('gateway_order_id') ?? ''));
         if ($go === '') {
             Response::json(['error' => 'gateway_order_id required'], 422);
             return;
         }
-        $status = OrderRepository::findPaymentStatusByGatewayOrderId($go);
+        $status = OrderRepository::findPaymentStatusByGatewayOrderIdForUser($go, $userId);
+        if ($status === 'pending' && OrderRepository::findRawByGatewayOrderId($go) === null) {
+            // Technically findPaymentStatusByGatewayOrderIdForUser returns 'pending' if not found.
+            // Let's just return what it says, or properly return 404 if order doesn't exist for user.
+            // Wait, we can just do:
+            $order = OrderRepository::findByGatewayForUser($go, $userId);
+            if ($order === null) {
+                Response::json(['error' => 'Not Found'], 404);
+                return;
+            }
+            $status = $order['payment_status'] ?? 'pending';
+        }
         Response::json(['payment_status' => $status]);
     }
 

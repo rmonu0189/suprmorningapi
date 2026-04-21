@@ -64,17 +64,22 @@ final class Request
 
     public function ip(): string
     {
-        $forwarded = $this->header('X-Forwarded-For');
-        if (is_string($forwarded) && $forwarded !== '') {
-            $parts = explode(',', $forwarded);
-            $candidate = trim($parts[0] ?? '');
-            if ($candidate !== '') {
-                return $candidate;
+        $remote = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $remoteStr = is_string($remote) ? $remote : '0.0.0.0';
+        $trustedStr = \App\Core\Env::get('TRUSTED_PROXIES', '');
+
+        if ($trustedStr === '*' || (in_array($remoteStr, explode(',', $trustedStr), true))) {
+            $forwarded = $this->header('X-Forwarded-For');
+            if (is_string($forwarded) && $forwarded !== '') {
+                $parts = explode(',', $forwarded);
+                $candidate = trim($parts[0] ?? '');
+                if ($candidate !== '') {
+                    return $candidate;
+                }
             }
         }
 
-        $remote = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-        return is_string($remote) ? $remote : '0.0.0.0';
+        return $remoteStr;
     }
 
     /** Raw request body (for webhooks signature verification). */

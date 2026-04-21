@@ -26,7 +26,7 @@ final class AuthService
 {
     private const MAX_FULL_NAME_LENGTH = 255;
     private const REGISTRATION_CLIENT_MOBILE = 'mobile';
-    private const ADMIN_PORTAL_FORBIDDEN_MESSAGE = 'You are not authorizes to access this portal';
+    private const ADMIN_PORTAL_FORBIDDEN_MESSAGE = 'You are not authorized to access this portal';
 
     /** @return array{ok: true, expires_in: int, debug_otp_code?: string} */
     public function requestOtp(array $body): array

@@ -1060,6 +1060,22 @@ final class OrderRepository
         return $v;
     }
 
+    public static function findPaymentStatusByGatewayOrderIdForUser(string $gatewayOrderId, string $userId): string
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT payment_status FROM orders WHERE gateway_order_id = :go AND user_id = :uid
+             ORDER BY created_at DESC, id DESC LIMIT 1'
+        );
+        $stmt->execute(['go' => $gatewayOrderId, 'uid' => $userId]);
+        $v = $stmt->fetchColumn();
+        if (!is_string($v) || $v === '') {
+            return 'pending';
+        }
+
+        return $v;
+    }
+
+
     /** @param array<string, mixed> $orderRow */
     private static function formatOrderWithItems(array $orderRow): array
     {

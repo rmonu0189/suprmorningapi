@@ -16,6 +16,7 @@ final class SecurityHeaders
         header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
         header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
         header('Cache-Control: no-store');
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     }
 
     private static function applyCors(): void
