@@ -7,6 +7,32 @@
 --
 -- Catalog: brands → products → variants → inventory (mirrors Supabase product tables in MySQL).
 
+SET FOREIGN_KEY_CHECKS = 0;
+
+CREATE TABLE IF NOT EXISTS warehouses (
+    id INT NOT NULL AUTO_INCREMENT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    uuid CHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    address_line_1 VARCHAR(512) NOT NULL,
+    address_line_2 VARCHAR(512) NULL,
+    area VARCHAR(255) NULL,
+    city VARCHAR(128) NOT NULL,
+    state VARCHAR(128) NOT NULL,
+    country VARCHAR(128) NOT NULL,
+    postal_code VARCHAR(32) NOT NULL,
+    latitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
+    longitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
+    radius_km DECIMAL(10, 2) NOT NULL DEFAULT 5.00,
+    status TINYINT(1) NOT NULL DEFAULT 1,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_warehouses_uuid (uuid),
+    UNIQUE KEY uq_warehouses_name (name),
+    KEY idx_warehouses_status (status),
+    KEY idx_warehouses_city (city)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1000;
+
+
 CREATE TABLE IF NOT EXISTS users (
     id CHAR(36) NOT NULL,
     country_code VARCHAR(8) NOT NULL DEFAULT '+91',
@@ -298,29 +324,6 @@ CREATE TABLE IF NOT EXISTS files (
     KEY idx_files_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS warehouses (
-    id INT NOT NULL AUTO_INCREMENT,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    uuid CHAR(36) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    address_line_1 VARCHAR(512) NOT NULL,
-    address_line_2 VARCHAR(512) NULL,
-    area VARCHAR(255) NULL,
-    city VARCHAR(128) NOT NULL,
-    state VARCHAR(128) NOT NULL,
-    country VARCHAR(128) NOT NULL,
-    postal_code VARCHAR(32) NOT NULL,
-    latitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
-    longitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
-    radius_km DECIMAL(10, 2) NOT NULL DEFAULT 5.00
-    status TINYINT(1) NOT NULL DEFAULT 1,
-    PRIMARY KEY (id),
-    UNIQUE KEY uq_warehouses_uuid (uuid),
-    UNIQUE KEY uq_warehouses_name (name),
-    KEY idx_warehouses_status (status),
-    KEY idx_warehouses_city (city)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1000;
-
 CREATE TABLE IF NOT EXISTS addresses (
     id CHAR(36) NOT NULL,
     user_id CHAR(36) NOT NULL,
@@ -384,23 +387,6 @@ CREATE TABLE IF NOT EXISTS wallets (
     CONSTRAINT fk_wallets_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS wallet_transactions (
-    id CHAR(36) NOT NULL,
-    user_id CHAR(36) NOT NULL,
-    order_id CHAR(36) NULL,
-    type VARCHAR(16) NOT NULL, -- credit|debit
-    source VARCHAR(32) NOT NULL, -- topup|order|subscription_order|refund|adjustment
-    amount DECIMAL(12, 2) NOT NULL,
-    status VARCHAR(16) NOT NULL DEFAULT 'success',
-    reference_id VARCHAR(255) NULL,
-    note VARCHAR(255) NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_wallet_transactions_user_created (user_id, created_at),
-    KEY idx_wallet_transactions_order (order_id),
-    CONSTRAINT fk_wallet_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    CONSTRAINT fk_wallet_transactions_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wallet_topups (
     id CHAR(36) NOT NULL,
@@ -452,6 +438,7 @@ CREATE TABLE IF NOT EXISTS orders (
     total_charges DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
     gateway_order_id VARCHAR(255) NULL,
     gateway_name VARCHAR(64) NULL DEFAULT 'razorpay',
+    order_kind VARCHAR(32) NOT NULL DEFAULT 'user',
     charges_metadata JSON NULL,
     delivered_at DATETIME NULL,
     stock_deducted_at DATETIME NULL,
@@ -462,10 +449,29 @@ CREATE TABLE IF NOT EXISTS orders (
     KEY idx_orders_user_created (user_id, created_at),
     KEY idx_orders_gateway (gateway_order_id),
     KEY idx_orders_warehouse (warehouse_id),
+    KEY idx_orders_kind_date (order_kind, delivery_date),
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_orders_cart FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE SET NULL,
     CONSTRAINT fk_orders_address FOREIGN KEY (address_id) REFERENCES addresses (id) ON DELETE SET NULL,
     CONSTRAINT fk_orders_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+    id CHAR(36) NOT NULL,
+    user_id CHAR(36) NOT NULL,
+    order_id CHAR(36) NULL,
+    type VARCHAR(16) NOT NULL, -- credit|debit
+    source VARCHAR(32) NOT NULL, -- topup|order|subscription_order|refund|adjustment
+    amount DECIMAL(12, 2) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'success',
+    reference_id VARCHAR(255) NULL,
+    note VARCHAR(255) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_wallet_transactions_user_created (user_id, created_at),
+    KEY idx_wallet_transactions_order (order_id),
+    CONSTRAINT fk_wallet_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wallet_transactions_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wallet_holds (
@@ -595,5 +601,23 @@ CREATE TABLE IF NOT EXISTS payment_events (
     KEY idx_payment_events_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS subscription_order_generation (
+    delivery_date DATE NOT NULL,
+    user_id CHAR(36) NOT NULL,
+    run_id CHAR(36) NOT NULL,
+    status VARCHAR(40) NOT NULL DEFAULT 'pending',
+    order_id CHAR(36) NULL,
+    error TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (delivery_date, user_id),
+    KEY idx_sog_delivery_status (delivery_date, status),
+    KEY idx_sog_run (run_id),
+    CONSTRAINT fk_sog_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_sog_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO cart_charges (id, warehouse_id, charge_index, title, amount, min_order_value, info)
 VALUES ('00000000-0000-4000-8000-000000000001', 0, 0, 'Delivery', 40.00, NULL, NULL);
+
+SET FOREIGN_KEY_CHECKS = 1;

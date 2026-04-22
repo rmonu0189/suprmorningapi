@@ -263,6 +263,7 @@ CREATE TABLE IF NOT EXISTS orders (
   total_charges REAL NOT NULL DEFAULT 0,
   gateway_order_id TEXT NULL,
   gateway_name TEXT NULL DEFAULT 'razorpay',
+  order_kind TEXT NOT NULL DEFAULT 'user',
   charges_metadata TEXT NULL,
   delivered_at TEXT NULL,
   stock_deducted_at TEXT NULL,
@@ -274,6 +275,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_kind_date ON orders(order_kind, delivery_date);
 
 CREATE TABLE IF NOT EXISTS order_items (
   id TEXT PRIMARY KEY,
