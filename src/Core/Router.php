@@ -23,7 +23,13 @@ final class Router
         $handler = $this->routes[$method][$path] ?? null;
 
         if ($handler === null) {
-            Response::json(['error' => 'Not Found'], 404);
+            Response::json([
+                'error' => 'Not Found',
+                'method' => $method,
+                'path' => $path,
+                'request_uri' => $_SERVER['REQUEST_URI'] ?? null,
+                'server_debug' => $_SERVER
+            ], 404);
             return;
         }
 

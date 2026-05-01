@@ -411,23 +411,29 @@
     }
     .api-tester-meta {
       font-family: var(--mono);
-      font-size: 0.8rem;
-      margin-bottom: 0.35rem;
+      font-size: 0.85rem;
+      margin-bottom: 0.75rem;
       color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 600;
     }
-    .api-tester-meta.status-2xx { color: #065f46; }
-    .api-tester-meta.status-4xx, .api-tester-meta.status-5xx { color: #991b1b; }
+    .api-tester-meta.status-2xx { background: #d1fae5; color: #065f46; }
+    .api-tester-meta.status-4xx, .api-tester-meta.status-5xx { background: #fee2e2; color: #991b1b; }
     .api-tester-res {
       margin: 0;
       font-size: 0.78rem;
-      max-height: 22rem;
+      max-height: 25rem;
       overflow: auto;
       background: var(--code-bg);
       color: var(--code-text);
-      padding: 0.75rem;
+      padding: 1rem;
       border-radius: 6px;
       white-space: pre-wrap;
       word-break: break-word;
+      border: 1px solid rgba(255,255,255,0.1);
     }
     .api-tester-curl-wrap {
       margin-top: 0.5rem;
@@ -504,24 +510,33 @@
           <a href="#post-auth-logout" data-section="post-auth-logout"><span class="method-tag">POST</span> /auth/logout</a>
           <a href="#get-auth-me" data-section="get-auth-me"><span class="method-tag">GET</span> /auth/me</a>
           <a href="#patch-auth-me" data-section="patch-auth-me"><span class="method-tag">PATCH</span> /auth/me</a>
+          <a href="#post-auth-delete-account" data-section="post-auth-delete-account"><span class="method-tag">POST</span> /auth/delete-account</a>
         </nav>
         <nav aria-label="Mobile commerce endpoints">
           <p class="nav-heading">Mobile commerce</p>
-          <a href="#commerce-mobile" data-section="commerce-mobile">Cart, addresses, orders, Razorpay</a>
+          <a href="#get-cart" data-section="get-cart"><span class="method-tag">GET</span> /cart</a>
+          <a href="#get-addresses" data-section="get-addresses"><span class="method-tag">GET</span> /addresses</a>
+          <a href="#get-loves" data-section="get-loves"><span class="method-tag">GET</span> /loves</a>
+          <a href="#get-serviceability" data-section="get-serviceability"><span class="method-tag">GET</span> /serviceability</a>
+          <a href="#get-search" data-section="get-search"><span class="method-tag">GET</span> /search</a>
+          <a href="#get-wallet" data-section="get-wallet"><span class="method-tag">GET</span> /wallet</a>
+          <a href="#get-orders" data-section="get-orders"><span class="method-tag">GET</span> /orders</a>
+          <a href="#get-subscriptions" data-section="get-subscriptions"><span class="method-tag">GET</span> /subscriptions</a>
         </nav>
-        <nav aria-label="Pages CMS endpoints">
-          <p class="nav-heading">Pages (dynamic UI)</p>
-          <a href="#get-pages" data-section="get-pages"><span class="method-tag">GET</span> /pages</a>
-          <a href="#post-pages" data-section="post-pages"><span class="method-tag">POST</span> /pages</a>
-          <a href="#put-pages" data-section="put-pages"><span class="method-tag">PUT</span> /pages</a>
-          <a href="#delete-pages" data-section="delete-pages"><span class="method-tag">DEL</span> /pages</a>
-        </nav>
-        <nav aria-label="Brands catalog endpoints">
-          <p class="nav-heading">Brands</p>
+        <nav aria-label="Catalog endpoints">
+          <p class="nav-heading">Catalog</p>
           <a href="#get-brands" data-section="get-brands"><span class="method-tag">GET</span> /brands</a>
-          <a href="#post-brands" data-section="post-brands"><span class="method-tag">POST</span> /brands</a>
-          <a href="#put-brands" data-section="put-brands"><span class="method-tag">PUT</span> /brands</a>
-          <a href="#delete-brands" data-section="delete-brands"><span class="method-tag">DEL</span> /brands</a>
+          <a href="#get-categories" data-section="get-categories"><span class="method-tag">GET</span> /categories</a>
+          <a href="#get-products" data-section="get-products"><span class="method-tag">GET</span> /products</a>
+          <a href="#get-variants" data-section="get-variants"><span class="method-tag">GET</span> /variants</a>
+          <a href="#get-inventory" data-section="get-inventory"><span class="method-tag">GET</span> /inventory</a>
+        </nav>
+        <nav aria-label="Admin endpoints">
+          <p class="nav-heading">Admin</p>
+          <a href="#admin-dashboard" data-section="admin-dashboard">Dashboard &amp; Analytics</a>
+          <a href="#admin-orders" data-section="admin-orders">Orders &amp; Delivery</a>
+          <a href="#admin-users" data-section="admin-users">Users &amp; Roles</a>
+          <a href="#admin-catalog" data-section="admin-catalog">CMS &amp; Catalog Management</a>
         </nav>
         <nav aria-label="Other reference">
           <p class="nav-heading">Reference</p>
@@ -920,38 +935,541 @@
         <h3><span class="method method-patch">PATCH</span> <code class="path">/v1/auth/me</code></h3>
         <p><strong>Header:</strong> <code class="inline">Authorization: Bearer &lt;access_token&gt;</code></p>
         <p>Update the signed-in user. Body: <code class="inline">{ "full_name": "…" }</code> (string or null to clear). <strong>200</strong> — <code class="inline">{ "user": { … } }</code>.</p>
+        <details class="sample-details">
+          <summary>Example request body</summary>
+          <pre>{ "full_name": "Ada Lovelace" }</pre>
+        </details>
+        <details class="api-tester" data-try-method="PATCH" data-try-path="/v1/auth/me" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <p class="api-tester-warn" hidden></p>
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="3">{ "full_name": "Your New Name" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+              <details class="api-tester-curl-wrap">
+                <summary>cURL (with current Base URL)</summary>
+                <div class="api-curl-block">
+                  <pre class="api-tester-curl"></pre>
+                  <button type="button" class="copy-try-curl" aria-label="Copy cURL">Copy</button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </details>
+        <div class="curl">
+          <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
+          <pre class="curl-snippet">curl -sS -X PATCH "<span class="cu-base"></span>/v1/auth/me" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -d '{"full_name":"Ada Lovelace"}'</pre>
+        </div>
+      </section>
+
+      <section class="doc-section" id="post-auth-delete-account" data-section="post-auth-delete-account">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/auth/delete-account</code></h3>
+        <p><strong>Header:</strong> <code class="inline">Authorization: Bearer &lt;access_token&gt;</code></p>
+        <p>Permanently delete the signed-in user's account and all associated data.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/auth/delete-account" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section class="doc-section" id="commerce-mobile" data-section="commerce-mobile">
         <h3>Mobile app — cart, catalog detail, checkout</h3>
         <p>These routes back the React Native client. Unless noted, send <code class="inline">Authorization: Bearer &lt;access_token&gt;</code>. Configure <code class="inline">RAZORPAY_KEY_ID</code>, <code class="inline">RAZORPAY_KEY_SECRET</code>, and <code class="inline">RAZORPAY_WEBHOOK_SECRET</code> for payments.</p>
-        <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
-          <thead><tr style="border-bottom:1px solid var(--card-border);"><th style="text-align:left;padding:0.35rem 0.25rem;">Method</th><th style="text-align:left;padding:0.35rem 0.25rem;">Path</th><th style="text-align:left;padding:0.35rem 0.25rem;">Notes</th></tr></thead>
-          <tbody>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/cart/charges</code></td><td>Public — delivery/tax lines</td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/cart</code></td><td>Active cart + nested line items</td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>POST</td><td><code>/v1/cart/items/add</code></td><td>JSON <code>{"variant_id":"uuid"}</code></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>POST</td><td><code>/v1/cart/items/decrease</code></td><td>JSON <code>{"variant_id":"uuid"}</code> → <code>{"quantity":n}</code></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>POST</td><td><code>/v1/cart/lock</code></td><td>After successful payment</td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/addresses</code></td><td>List</td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>POST</td><td><code>/v1/addresses</code></td><td>Create (snake_case body)</td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>PUT</td><td><code>/v1/addresses</code></td><td>Update incl. <code>id</code></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>DELETE</td><td><code>/v1/addresses?id=uuid</code></td><td></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>POST</td><td><code>/v1/addresses/default</code></td><td><code>{"id":"uuid"}</code></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>POST</td><td><code>/v1/addresses/default-latest</code></td><td></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/loves</code></td><td>Wishlist rows + nested variants</td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/loves/ids</code></td><td><code>{"variant_ids":[]}</code></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>POST</td><td><code>/v1/loves</code></td><td><code>{"variant_id":"uuid"}</code></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>DELETE</td><td><code>/v1/loves?variant_id=uuid</code></td><td></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/catalog/variant-detail?id=uuid</code></td><td>PDP aggregate</td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>POST</td><td><code>/v1/orders/place</code></td><td><code>{"cart_id","address_id"}</code> → Razorpay order + <code>razorpayResponse</code></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/orders?page=&amp;limit=</code></td><td>Excludes <code>payment_status=pending</code></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/orders/by-id?id=uuid</code></td><td></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/orders/by-gateway?gateway_order_id=</code></td><td></td></tr>
-            <tr style="border-bottom:1px solid var(--card-border);"><td>GET</td><td><code>/v1/orders/payment-status?gateway_order_id=</code></td><td></td></tr>
-            <tr><td>POST</td><td><code>/v1/webhooks/razorpay</code></td><td>Raw body + <code>X-Razorpay-Signature</code> — updates order payment status</td></tr>
-          </tbody>
-        </table>
+      </section>
+
+      <!-- CART ENDPOINTS -->
+      <section class="doc-section" id="get-cart" data-section="get-cart">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/cart</code></h3>
+        <p>Returns the active cart for the signed-in user, including nested line items.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/cart" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="get-cart-charges" data-section="get-cart-charges">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/cart/charges</code></h3>
+        <p><strong>Public.</strong> Returns delivery and tax lines applicable to carts.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/cart/charges" data-try-auth="none" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-cart-items-add" data-section="post-cart-items-add">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/cart/items/add</code></h3>
+        <p>Add an item to the cart.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/cart/items/add" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{ "variant_id": "VARIANT_UUID" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-cart-items-decrease" data-section="post-cart-items-decrease">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/cart/items/decrease</code></h3>
+        <p>Decrease quantity of an item in the cart.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/cart/items/decrease" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{ "variant_id": "VARIANT_UUID" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-cart-lock" data-section="post-cart-lock">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/cart/lock</code></h3>
+        <p>Locks the cart after successful payment.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/cart/lock" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- ADDRESS ENDPOINTS -->
+      <section class="doc-section" id="get-addresses" data-section="get-addresses">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/addresses</code></h3>
+        <p>List all addresses for the signed-in user.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/addresses" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-addresses" data-section="post-addresses">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/addresses</code></h3>
+        <p>Create a new address.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/addresses" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="6">{
+  "full_name": "Ada Lovelace",
+  "phone": "919876543210",
+  "flat_house_office": "Flat 101",
+  "area_sector_locality": "Sector 45",
+  "city": "Gurgaon",
+  "state": "Haryana",
+  "pincode": "122003",
+  "is_default": true
+}</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="put-addresses" data-section="put-addresses">
+        <h3><span class="method method-put">PUT</span> <code class="path">/v1/addresses</code></h3>
+        <p>Update an existing address (include <code>id</code>).</p>
+        <details class="api-tester" data-try-method="PUT" data-try-path="/v1/addresses" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="4">{ "id": "ADDRESS_UUID", "full_name": "Updated Name" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="delete-addresses" data-section="delete-addresses">
+        <h3><span class="method method-delete">DELETE</span> <code class="path">/v1/addresses</code></h3>
+        <p>Delete an address.</p>
+        <details class="api-tester" data-try-method="DELETE" data-try-path="/v1/addresses" data-try-auth="bearer" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string</label>
+              <input type="text" class="api-tester-query" placeholder="id=ADDRESS_UUID" value="id=ADDRESS_UUID" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-addresses-default" data-section="post-addresses-default">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/addresses/default</code></h3>
+        <p>Set an address as default.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/addresses/default" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{ "id": "ADDRESS_UUID" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-addresses-default-latest" data-section="post-addresses-default-latest">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/addresses/default-latest</code></h3>
+        <p>Set the most recently created address as default.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/addresses/default-latest" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- LOVES (WISHLIST) -->
+      <section class="doc-section" id="get-loves" data-section="get-loves">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/loves</code></h3>
+        <p>List wishlist items with nested variants.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/loves" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="get-loves-ids" data-section="get-loves-ids">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/loves/ids</code></h3>
+        <p>Get a simple list of variant IDs in the wishlist.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/loves/ids" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-loves" data-section="post-loves">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/loves</code></h3>
+        <p>Add a variant to wishlist.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/loves" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{ "variant_id": "VARIANT_UUID" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="delete-loves" data-section="delete-loves">
+        <h3><span class="method method-delete">DELETE</span> <code class="path">/v1/loves</code></h3>
+        <p>Remove a variant from wishlist.</p>
+        <details class="api-tester" data-try-method="DELETE" data-try-path="/v1/loves" data-try-auth="bearer" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string</label>
+              <input type="text" class="api-tester-query" placeholder="variant_id=VARIANT_UUID" value="variant_id=VARIANT_UUID" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- SERVICEABILITY -->
+      <section class="doc-section" id="get-serviceability" data-section="get-serviceability">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/serviceability</code></h3>
+        <p>Check if a pincode is serviceable.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/serviceability" data-try-auth="none" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string</label>
+              <input type="text" class="api-tester-query" placeholder="pincode=122003" value="pincode=122003" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- SEARCH -->
+      <section class="doc-section" id="get-search" data-section="get-search">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/search</code></h3>
+        <p>Search for products and variants.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/search" data-try-auth="none" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string</label>
+              <input type="text" class="api-tester-query" placeholder="q=milk" value="q=milk" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- WALLET -->
+      <section class="doc-section" id="get-wallet" data-section="get-wallet">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/wallet</code></h3>
+        <p>Get user's wallet balance and summary.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/wallet" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="get-wallet-transactions" data-section="get-wallet-transactions">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/wallet/transactions</code></h3>
+        <p>List wallet transactions for the user.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/wallet/transactions" data-try-auth="bearer" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string (optional)</label>
+              <input type="text" class="api-tester-query" placeholder="page=1&limit=20" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-wallet-add-funds" data-section="post-wallet-add-funds">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/wallet/add-funds/create-order</code></h3>
+        <p>Initiate adding funds to wallet via Razorpay.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/wallet/add-funds/create-order" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{ "amount": 500 }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- ORDERS -->
+      <section class="doc-section" id="get-orders" data-section="get-orders">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/orders</code></h3>
+        <p>List orders for the user.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/orders" data-try-auth="bearer" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string (optional)</label>
+              <input type="text" class="api-tester-query" placeholder="page=1&limit=20" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-orders-place" data-section="post-orders-place">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/orders/place</code></h3>
+        <p>Place an order and initiate Razorpay payment.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/orders/place" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="4">{ "cart_id": "CART_UUID", "address_id": "ADDRESS_UUID" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="get-orders-payment-status" data-section="get-orders-payment-status">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/orders/payment-status</code></h3>
+        <p>Get payment status of an order via gateway ID.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/orders/payment-status" data-try-auth="bearer" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string</label>
+              <input type="text" class="api-tester-query" placeholder="gateway_order_id=order_..." value="gateway_order_id=order_..." />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- SUBSCRIPTIONS -->
+      <section class="doc-section" id="get-subscriptions" data-section="get-subscriptions">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/subscriptions</code></h3>
+        <p>List active subscriptions for the user.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/subscriptions" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-subscriptions" data-section="post-subscriptions">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/subscriptions</code></h3>
+        <p>Create a new subscription.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/subscriptions" data-try-auth="bearer">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="6">{
+  "variant_id": "VARIANT_UUID",
+  "address_id": "ADDRESS_UUID",
+  "frequency": "daily",
+  "quantity": 1,
+  "start_date": "2026-05-01"
+}</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="doc-section" id="post-webhooks-razorpay" data-section="post-webhooks-razorpay">
+        <h3><span class="method method-post">POST</span> <code class="path">/v1/webhooks/razorpay</code></h3>
+        <p>Razorpay webhook handler. Updates order payment status.</p>
+        <details class="api-tester" data-try-method="POST" data-try-path="/v1/webhooks/razorpay" data-try-auth="none">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">Raw JSON body (webhook payload)</label>
+              <textarea class="api-tester-json" rows="4">{ "event": "payment.captured", "payload": { "payment": { "entity": { "order_id": "order_..." } } } }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section class="doc-section" id="get-pages" data-section="get-pages">
@@ -1547,6 +2065,184 @@
           <button type="button" class="copy-curl" aria-label="Copy cURL">Copy</button>
           <pre class="curl-snippet">curl -sS -X DELETE "<span class="cu-base"></span>/v1/brands?id=BRAND_UUID" \
   -H "Authorization: Bearer YOUR_ADMIN_ACCESS_TOKEN"</pre>
+        </div>
+      </section>
+
+      <!-- CATEGORIES -->
+      <section class="doc-section" id="get-categories" data-section="get-categories">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/categories</code></h3>
+        <p>List all categories.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/categories" data-try-auth="none" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- PRODUCTS -->
+      <section class="doc-section" id="get-products" data-section="get-products">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/products</code></h3>
+        <p>List all products or get one by ID.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/products" data-try-auth="none" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string</label>
+              <input type="text" class="api-tester-query" placeholder="id=PRODUCT_UUID or leave empty" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- VARIANTS -->
+      <section class="doc-section" id="get-variants" data-section="get-variants">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/variants</code></h3>
+        <p>List all variants or get one by ID.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/variants" data-try-auth="none" data-try-no-json="1" data-try-query="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-query-wrap">
+              <label class="try-lbl">Query string</label>
+              <input type="text" class="api-tester-query" placeholder="id=VARIANT_UUID or leave empty" />
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- INVENTORY -->
+      <section class="doc-section" id="get-inventory" data-section="get-inventory">
+        <h3><span class="method method-get">GET</span> <code class="path">/v1/inventory</code></h3>
+        <p>List inventory levels.</p>
+        <details class="api-tester" data-try-method="GET" data-try-path="/v1/inventory" data-try-auth="bearer" data-try-no-json="1">
+          <summary>Try this request</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden>
+              <div class="api-tester-meta"></div>
+              <pre class="api-tester-res"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- ADMIN -->
+      <section class="doc-section" id="admin-dashboard" data-section="admin-dashboard">
+        <h3>Admin Dashboard &amp; Analytics</h3>
+        <p>Requires <code class="inline">role: "admin"</code>.</p>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/dashboard/summary" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/dashboard/summary</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/analytics/overview" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/analytics/overview</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section" id="admin-orders" data-section="admin-orders">
+        <h3>Admin Orders &amp; Delivery</h3>
+        <p>Requires <code class="inline">role: "admin"</code>.</p>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/orders" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/orders (List all)</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/delivery" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/delivery (Delivery management)</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section" id="admin-users" data-section="admin-users">
+        <h3>Admin Users &amp; Roles</h3>
+        <p>Requires <code class="inline">role: "admin"</code>.</p>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/users" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/users (List all)</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section" id="admin-catalog" data-section="admin-catalog">
+        <h3>Admin CMS &amp; Catalog Management</h3>
+        <p>Requires <code class="inline">role: "admin"</code>. Manage pages, brands, tags, and uploads.</p>
+        <div class="api-tester" data-try-method="POST" data-try-path="/v1/admin/uploads" data-try-auth="bearer" data-require-admin="1">
+          <summary>POST /admin/uploads (Image upload)</summary>
+          <div class="api-tester-box">
+             <p class="note">Requires multipart/form-data with "file" field. Tester currently only supports JSON.</p>
+          </div>
+        </div>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/tags" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/tags</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/warehouses" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/warehouses</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/cart-charges" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/cart-charges</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section" id="admin-subscriptions" data-section="admin-subscriptions">
+        <h3>Admin Subscriptions</h3>
+        <p>Requires <code class="inline">role: "admin"</code>. Generate orders for active subscriptions.</p>
+        <div class="api-tester" data-try-method="GET" data-try-path="/v1/admin/subscriptions" data-try-auth="bearer" data-require-admin="1" data-try-no-json="1">
+          <summary>GET /admin/subscriptions (List all)</summary>
+          <div class="api-tester-box">
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
+        </div>
+        <div class="api-tester" data-try-method="POST" data-try-path="/v1/admin/subscriptions/generate-orders/start" data-try-auth="bearer" data-require-admin="1">
+          <summary>POST /admin/subscriptions/generate-orders/start</summary>
+          <div class="api-tester-box">
+            <div class="api-tester-json-wrap">
+              <label class="try-lbl">JSON body</label>
+              <textarea class="api-tester-json" rows="2">{ "target_date": "2026-05-02" }</textarea>
+            </div>
+            <button type="button" class="btn-api-send">Send request</button>
+            <div class="api-tester-out" hidden><div class="api-tester-meta"></div><pre class="api-tester-res"></pre></div>
+          </div>
         </div>
       </section>
 
