@@ -411,6 +411,9 @@ final class App
         $router->add('POST', self::API_PREFIX . '/orders/support', static function (Request $r) use ($orderSupport): void {
             $orderSupport->createOrMessage($r);
         });
+        $router->add('POST', self::API_PREFIX . '/orders/support/upload', static function (Request $r) use ($orderSupport): void {
+            $orderSupport->uploadAttachment($r);
+        });
         $router->add('GET', self::API_PREFIX . '/orders/ratings', static function (Request $r) use ($orderRatings): void {
             $orderRatings->byOrder($r);
         });

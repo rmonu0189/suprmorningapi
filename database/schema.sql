@@ -603,6 +603,7 @@ CREATE TABLE IF NOT EXISTS order_support_messages (
     sender_user_id CHAR(36) NOT NULL,
     sender_role VARCHAR(32) NOT NULL,
     message TEXT NOT NULL,
+    attachments JSON NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_order_support_messages_query (query_id, created_at),

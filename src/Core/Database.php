@@ -299,6 +299,7 @@ final class Database
                 sender_user_id TEXT NOT NULL,
                 sender_role TEXT NOT NULL,
                 message TEXT NOT NULL,
+                attachments TEXT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (query_id) REFERENCES order_support_queries(id) ON DELETE CASCADE,
                 FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -306,6 +307,7 @@ final class Database
         );
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_order_support_messages_query ON order_support_messages(query_id, created_at)');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_order_support_messages_sender ON order_support_messages(sender_user_id)');
+        self::ensureSqliteColumn($pdo, 'order_support_messages', 'attachments', 'TEXT', 'NULL');
 
         // Promote the first OTP_TEST_PHONE to an admin user for local testing.
         $raw = (string) Env::get('OTP_TEST_PHONES', '');

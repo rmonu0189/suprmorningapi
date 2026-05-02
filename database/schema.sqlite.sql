@@ -479,6 +479,7 @@ CREATE TABLE IF NOT EXISTS order_support_messages (
   sender_user_id TEXT NOT NULL,
   sender_role TEXT NOT NULL,
   message TEXT NOT NULL,
+  attachments TEXT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (query_id) REFERENCES order_support_queries(id) ON DELETE CASCADE,
   FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE

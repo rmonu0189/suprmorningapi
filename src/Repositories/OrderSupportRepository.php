@@ -107,11 +107,13 @@ final class OrderSupportRepository
         ]);
     }
 
-    public static function addMessage(string $id, string $queryId, string $senderUserId, string $senderRole, string $message): void
+    /** @param list<string> $attachments */
+    public static function addMessage(string $id, string $queryId, string $senderUserId, string $senderRole, string $message, array $attachments = []): void
     {
+        $attachmentsJson = $attachments === [] ? null : json_encode(array_values($attachments), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         $stmt = Database::connection()->prepare(
-            'INSERT INTO order_support_messages (id, query_id, sender_user_id, sender_role, message)
-             VALUES (:id, :qid, :sid, :role, :msg)'
+            'INSERT INTO order_support_messages (id, query_id, sender_user_id, sender_role, message, attachments)
+             VALUES (:id, :qid, :sid, :role, :msg, :attachments)'
         );
         $stmt->execute([
             'id' => $id,
@@ -119,6 +121,7 @@ final class OrderSupportRepository
             'sid' => $senderUserId,
             'role' => $senderRole,
             'msg' => $message,
+            'attachments' => $attachmentsJson,
         ]);
     }
 
@@ -163,6 +166,7 @@ final class OrderSupportRepository
             'sender_user_id' => (string) ($row['sender_user_id'] ?? ''),
             'sender_role' => (string) ($row['sender_role'] ?? ''),
             'message' => (string) ($row['message'] ?? ''),
+            'attachments' => self::decodeAttachments($row['attachments'] ?? null),
             'created_at' => (string) ($row['created_at'] ?? ''),
             'sender' => [
                 'phone' => isset($row['phone']) && $row['phone'] !== '' ? (string) $row['phone'] : null,
@@ -170,6 +174,29 @@ final class OrderSupportRepository
                 'full_name' => isset($row['full_name']) && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
             ],
         ], $rows));
+    }
+
+    /** @return list<string> */
+    private static function decodeAttachments(mixed $raw): array
+    {
+        if (!is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+        try {
+            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            return [];
+        }
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $out = [];
+        foreach ($decoded as $item) {
+            if (is_string($item) && trim($item) !== '') {
+                $out[] = trim($item);
+            }
+        }
+        return $out;
     }
 
     /** @return list<array<string,mixed>> */
