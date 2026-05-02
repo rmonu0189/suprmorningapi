@@ -12,7 +12,7 @@ final class InventoryMovementRepository
     /**
      * @return list<array<string, mixed>>
      */
-    public static function findAll(int $warehouseId, ?string $variantId = null, int $limit = 100, int $offset = 0): array
+    public static function findAll(?int $warehouseId = null, ?string $variantId = null, int $limit = 100, int $offset = 0): array
     {
         $limit = max(1, min(500, $limit));
         $offset = max(0, $offset);
@@ -24,13 +24,20 @@ final class InventoryMovementRepository
                 INNER JOIN variants v ON v.id = m.variant_id
                 INNER JOIN products p ON p.id = v.product_id';
 
-        $params = ['wid' => $warehouseId];
-        $sql .= ' WHERE m.warehouse_id = :wid';
+        $params = [];
+        $where = [];
+        if ($warehouseId !== null) {
+            $where[] = 'm.warehouse_id = :wid';
+            $params['wid'] = $warehouseId;
+        }
         if ($variantId !== null && $variantId !== '') {
-            $sql .= ' AND m.variant_id = :vid';
+            $where[] = 'm.variant_id = :vid';
             $params['vid'] = $variantId;
         }
 
+        if ($where !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
         $sql .= ' ORDER BY m.created_at DESC, m.id DESC LIMIT :lim OFFSET :off';
         $stmt = Database::connection()->prepare($sql);
         foreach ($params as $k => $v) {
@@ -80,4 +87,3 @@ final class InventoryMovementRepository
         ]);
     }
 }
-

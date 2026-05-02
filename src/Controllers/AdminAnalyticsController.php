@@ -8,12 +8,14 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\AdminAnalyticsRepository;
+use App\Repositories\UserRepository;
 
 final class AdminAnalyticsController
 {
     public function overview(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -37,7 +39,13 @@ final class AdminAnalyticsController
         $fromSql = $from . ' 00:00:00';
         $toSql = $to . ' 00:00:00';
 
-        $overview = AdminAnalyticsRepository::overview($fromSql, $toSql);
+        $warehouseId = $this->warehouseScopeForClaims($claims);
+        if ($warehouseId === false) {
+            Response::json(['error' => 'Forbidden'], 403);
+            return;
+        }
+
+        $overview = AdminAnalyticsRepository::overview($fromSql, $toSql, $warehouseId);
 
         Response::json([
             'from' => $from,
@@ -48,7 +56,8 @@ final class AdminAnalyticsController
 
     public function coupons(Request $request): void
     {
-        if (AuthMiddleware::requireAdmin($request) === null) {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
             return;
         }
 
@@ -65,12 +74,32 @@ final class AdminAnalyticsController
             return;
         }
 
-        $usage = AdminAnalyticsRepository::couponUsage($from . ' 00:00:00', $to . ' 00:00:00');
+        $warehouseId = $this->warehouseScopeForClaims($claims);
+        if ($warehouseId === false) {
+            Response::json(['error' => 'Forbidden'], 403);
+            return;
+        }
+
+        $usage = AdminAnalyticsRepository::couponUsage($from . ' 00:00:00', $to . ' 00:00:00', $warehouseId);
         Response::json([
             'from' => $from,
             'to' => $to,
             'summary' => $usage['summary'],
             'orders' => $usage['orders'],
         ]);
+    }
+
+    /** @return int|null|false null means unrestricted admin scope; false means forbidden. */
+    private function warehouseScopeForClaims(array $claims): int|null|false
+    {
+        $role = (string) ($claims['role'] ?? '');
+        if ($role !== 'staff' && $role !== 'manager' && $role !== 'delivery') {
+            return null;
+        }
+
+        $sub = (string) ($claims['sub'] ?? '');
+        $warehouseId = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
+
+        return $warehouseId ?? false;
     }
 }

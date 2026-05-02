@@ -28,7 +28,7 @@ final class InventoryMovementsController
 
         $role = (string) ($claims['role'] ?? '');
         $sub = (string) ($claims['sub'] ?? '');
-        $warehouseId = 0;
+        $warehouseId = null;
         if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
             $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
             if ($wid === null) {
@@ -166,4 +166,3 @@ final class InventoryMovementsController
         Response::json(['inventory' => $row], 201);
     }
 }
-

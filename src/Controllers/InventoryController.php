@@ -27,7 +27,7 @@ final class InventoryController
 
         $role = (string) ($claims['role'] ?? '');
         $sub = (string) ($claims['sub'] ?? '');
-        $warehouseId = 0;
+        $warehouseId = null;
         if ($role === 'staff' || $role === 'manager' || $role === 'delivery') {
             $wid = $sub !== '' ? UserRepository::findWarehouseId($sub) : null;
             if ($wid === null) {
@@ -36,7 +36,7 @@ final class InventoryController
             }
             $warehouseId = $wid;
         } else {
-            // Admin: allow optional ?warehouse_id=... filter, default to legacy/global bucket (0).
+            // Admin: allow optional ?warehouse_id=... filter, default to all warehouses.
             $widParam = $request->query('warehouse_id');
             if ($widParam !== null && trim((string) $widParam) !== '' && preg_match('/^\d+$/', trim((string) $widParam))) {
                 $warehouseId = (int) trim((string) $widParam);

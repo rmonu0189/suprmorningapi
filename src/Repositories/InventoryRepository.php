@@ -30,7 +30,7 @@ final class InventoryRepository
      *
      * @return list<array<string, mixed>>
      */
-    public static function findAll(int $warehouseId, ?string $variantId = null): array
+    public static function findAll(?int $warehouseId = null, ?string $variantId = null): array
     {
         $sql = 'SELECT i.id, i.created_at, i.variant_id, i.quantity, i.reserved_quantity,
                        i.warehouse_id,
@@ -39,13 +39,20 @@ final class InventoryRepository
                 FROM inventory i
                 INNER JOIN variants v ON v.id = i.variant_id
                 INNER JOIN products p ON p.id = v.product_id';
-        $params = ['wid' => $warehouseId];
-        $sql .= ' WHERE i.warehouse_id = :wid';
+        $params = [];
+        $where = [];
+        if ($warehouseId !== null) {
+            $where[] = 'i.warehouse_id = :wid';
+            $params['wid'] = $warehouseId;
+        }
         if ($variantId !== null && $variantId !== '') {
-            $sql .= ' AND i.variant_id = :vid';
+            $where[] = 'i.variant_id = :vid';
             $params['vid'] = $variantId;
         }
-        $sql .= ' ORDER BY p.name ASC, v.sku ASC, i.id ASC';
+        if ($where !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        $sql .= ' ORDER BY i.warehouse_id ASC, p.name ASC, v.sku ASC, i.id ASC';
         $stmt = Database::connection()->prepare($sql);
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
