@@ -129,7 +129,10 @@ final class OrderRatingController
         if (is_array($deliveryRatingRaw)) {
             $deliveryRating = (int) ($deliveryRatingRaw['rating'] ?? 0);
             $deliveryFeedback = isset($deliveryRatingRaw['feedback']) ? trim((string) $deliveryRatingRaw['feedback']) : null;
-            if ($deliveryRating >= 1 && $deliveryRating <= 5) {
+            $hasRating = $deliveryRating >= 1 && $deliveryRating <= 5;
+            $hasFeedback = $deliveryFeedback !== null && $deliveryFeedback !== '';
+            
+            if ($hasRating || $hasFeedback) {
                 $agent = $order['delivery_agent'] ?? null;
                 $deliveryPartnerUserId = null;
                 if (is_array($agent) && isset($agent['id']) && is_string($agent['id']) && $agent['id'] !== '') {

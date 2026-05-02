@@ -19,6 +19,7 @@ final class CatalogRepository
                        v.status, v.discount_tag,
                        p.id AS product_table_id, p.name AS product_name, p.description AS product_description,
                        p.status AS product_status, p.category_id AS product_category_id, p.subcategory_id AS product_subcategory_id,
+                       p.is_subscribable AS product_is_subscribable,
                        b.id AS brand_id_val, b.name AS brand_name, b.about AS brand_about, b.logo AS brand_logo, b.status AS brand_status,
                        i.quantity AS inv_quantity, i.reserved_quantity AS inv_reserved
                 FROM variants v
@@ -98,6 +99,7 @@ final class CatalogRepository
                     v.status, v.discount_tag,
                     p.id AS product_table_id, p.name AS product_name, p.brand_id, p.description AS product_description,
                     p.metadata AS product_metadata, p.status AS product_status, p.subcategory_id AS product_subcategory_id,
+                    p.is_subscribable AS product_is_subscribable,
                     b.id AS brand_id_val, b.name AS brand_name, b.about AS brand_about, b.logo AS brand_logo, b.status AS brand_status,
                     i.quantity AS inv_quantity, i.reserved_quantity AS inv_reserved
              FROM variants v
@@ -133,6 +135,7 @@ final class CatalogRepository
                        v.status, v.discount_tag,
                        p.id AS product_table_id, p.name AS product_name, p.description AS product_description,
                        p.metadata AS product_metadata, p.status AS product_status, p.subcategory_id AS product_subcategory_id,
+                       p.is_subscribable AS product_is_subscribable,
                        b.id AS brand_id_val, b.name AS brand_name, b.about AS brand_about, b.logo AS brand_logo, b.status AS brand_status,
                        i.quantity AS inv_quantity, i.reserved_quantity AS inv_reserved
                 FROM variants v
@@ -226,6 +229,7 @@ final class CatalogRepository
                 'subcategory_id' => isset($row['product_subcategory_id']) && $row['product_subcategory_id'] !== null && $row['product_subcategory_id'] !== ''
                     ? (string) $row['product_subcategory_id']
                     : null,
+                'is_subscribable' => (bool) (int) ($row['product_is_subscribable'] ?? 1),
                 'brands' => [
                     'id' => (string) $row['brand_id_val'],
                     'name' => (string) $row['brand_name'],

@@ -14,7 +14,7 @@ final class ProductRepository
      */
     public static function findAll(?string $brandId = null): array
     {
-        $sql = 'SELECT id, created_at, brand_id, category_id, subcategory_id, name, description, tags, status, metadata
+        $sql = 'SELECT id, created_at, brand_id, category_id, subcategory_id, name, description, tags, status, is_subscribable, metadata
                 FROM products';
         $params = [];
         if ($brandId !== null && $brandId !== '') {
@@ -43,7 +43,7 @@ final class ProductRepository
     public static function findById(string $id): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT id, created_at, brand_id, category_id, subcategory_id, name, description, tags, status, metadata
+            'SELECT id, created_at, brand_id, category_id, subcategory_id, name, description, tags, status, is_subscribable, metadata
              FROM products WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
@@ -64,13 +64,14 @@ final class ProductRepository
         ?string $description,
         ?array $tags,
         bool $status,
+        bool $isSubscribable,
         ?array $metadata
     ): void {
         $metaJson = self::encodeMetadata($metadata);
         $tagsJson = self::encodeTags($tags);
         $stmt = Database::connection()->prepare(
-            'INSERT INTO products (id, brand_id, category_id, subcategory_id, name, description, tags, status, metadata)
-             VALUES (:id, :bid, :catid, :subid, :name, :desc, :tags, :status, :meta)'
+            'INSERT INTO products (id, brand_id, category_id, subcategory_id, name, description, tags, status, is_subscribable, metadata)
+             VALUES (:id, :bid, :catid, :subid, :name, :desc, :tags, :status, :subscribable, :meta)'
         );
         $stmt->execute([
             'id' => $id,
@@ -81,6 +82,7 @@ final class ProductRepository
             'desc' => $description,
             'tags' => $tagsJson,
             'status' => $status ? 1 : 0,
+            'subscribable' => $isSubscribable ? 1 : 0,
             'meta' => $metaJson,
         ]);
     }
@@ -101,6 +103,7 @@ final class ProductRepository
         ?array $tags,
         bool $tagsProvided,
         ?bool $status,
+        ?bool $isSubscribable,
         ?array $metadata,
         bool $metadataProvided
     ): void {
@@ -134,6 +137,10 @@ final class ProductRepository
         if ($status !== null) {
             $sets[] = 'status = :status';
             $params['status'] = $status ? 1 : 0;
+        }
+        if ($isSubscribable !== null) {
+            $sets[] = 'is_subscribable = :subscribable';
+            $params['subscribable'] = $isSubscribable ? 1 : 0;
         }
         if ($metadataProvided) {
             $sets[] = 'metadata = :meta';
@@ -199,6 +206,7 @@ final class ProductRepository
             'description' => $desc === null || $desc === '' ? null : (string) $desc,
             'tags' => self::decodeTags($row['tags'] ?? null),
             'status' => (bool) (int) $row['status'],
+            'is_subscribable' => (bool) (int) ($row['is_subscribable'] ?? 1),
             'metadata' => self::decodeMetadata($row['metadata'] ?? null),
         ];
     }

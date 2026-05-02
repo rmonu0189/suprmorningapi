@@ -128,11 +128,15 @@ final class ProductsController
         if (array_key_exists('metadata', $body)) {
             $metadata = self::parseMetadata($body['metadata']);
         }
+        $isSubscribable = true;
+        if (array_key_exists('is_subscribable', $body)) {
+            $isSubscribable = self::parseBool($body['is_subscribable'], 'is_subscribable');
+        }
 
         $id = Uuid::v4();
 
         try {
-            ProductRepository::insert($id, $brandId, $categoryId, $subcategoryId, $name, $description, $tags, $status, $metadata);
+            ProductRepository::insert($id, $brandId, $categoryId, $subcategoryId, $name, $description, $tags, $status, $isSubscribable, $metadata);
         } catch (PDOException $e) {
             throw new HttpException('Could not create product', 500);
         }
@@ -263,13 +267,17 @@ final class ProductsController
         if ($metadataProvided) {
             $metadata = self::parseMetadata($body['metadata']);
         }
+        $isSubscribable = null;
+        if (array_key_exists('is_subscribable', $body)) {
+            $isSubscribable = self::parseBool($body['is_subscribable'], 'is_subscribable');
+        }
 
         if (
             $brandId === null && $name === null && !$descriptionProvided
-            && !$tagsProvided && $status === null && !$metadataProvided && !$categoryIdProvided && !$subcategoryIdProvided
+            && !$tagsProvided && $status === null && $isSubscribable === null && !$metadataProvided && !$categoryIdProvided && !$subcategoryIdProvided
         ) {
             throw new ValidationException('Nothing to update', [
-                'body' => 'Provide at least one of: brand_id, category_id, subcategory_id, name, description, tags, status, metadata.',
+                'body' => 'Provide at least one of: brand_id, category_id, subcategory_id, name, description, tags, status, is_subscribable, metadata.',
             ]);
         }
 
@@ -287,6 +295,7 @@ final class ProductsController
                 $tags,
                 $tagsProvided,
                 $status,
+                $isSubscribable,
                 $metadata,
                 $metadataProvided
             );
