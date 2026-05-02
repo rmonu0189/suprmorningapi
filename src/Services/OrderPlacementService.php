@@ -14,6 +14,7 @@ use App\Repositories\AddressRepository;
 use App\Repositories\CartChargeRepository;
 use App\Repositories\CartRepository;
 use App\Repositories\CatalogRepository;
+use App\Repositories\CouponRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
 use App\Repositories\WalletHoldRepository;
@@ -113,6 +114,18 @@ final class OrderPlacementService
             $totalPrice += $line['unit_price'] * $q;
         }
 
+        $coupon = null;
+        $couponCode = isset($cart['coupon_code']) ? trim((string) $cart['coupon_code']) : '';
+        if ($couponCode !== '') {
+            $coupon = CouponRepository::findByCode(strtoupper($couponCode));
+            $validation = CouponService::validate($coupon, $totalPrice);
+            if ($validation['ok'] !== true) {
+                CartRepository::setActiveCartCoupon($userId, null, null, null);
+                throw new ValidationException($validation['message'] ?? 'Coupon cannot be applied.', ['coupon' => $validation['message'] ?? 'Invalid coupon.']);
+            }
+        }
+        $couponDiscount = CouponService::discount($coupon, $totalPrice);
+
         $resolvedWarehouse = self::resolveChargeWarehouse($address);
         $chargeRows = CartChargeRepository::findAllOrdered($resolvedWarehouse['warehouse_id']);
         $chargeBreakdown = self::computeChargeBreakdown($totalPrice, $chargeRows);
@@ -123,7 +136,7 @@ final class OrderPlacementService
         // Edge function sets order.tax to 0; tax-like rows still flow into total_charges / metadata.
         $tax = 0.0;
 
-        $grandTotal = round($totalPrice + $totalCharges, 2);
+        $grandTotal = round(max(0.0, $totalPrice - $couponDiscount) + $totalCharges, 2);
         if ($grandTotal < 0.01) {
             throw new HttpException('Order total too small for payment', 400);
         }
@@ -195,6 +208,8 @@ final class OrderPlacementService
                 $lng,
                 $totalPrice,
                 $totalCharges,
+                $coupon !== null ? (string) $coupon['code'] : null,
+                $couponDiscount,
                 null,
                 $gatewayNameInsert,
                 $otherChargesValue !== [] ? $otherChargesValue : null
@@ -242,6 +257,7 @@ final class OrderPlacementService
                 $gatewayId = 'wallet_' . $walletTxId;
                 OrderRepository::updateGatewayOrderId($orderId, $gatewayId);
                 OrderRepository::updatePaymentStatusByOrderId($orderId, 'success');
+                ReferralService::completeForSuccessfulOrder($userId, $orderId);
 
                 PaymentRepository::insert(
                     Uuid::v4(),

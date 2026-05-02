@@ -238,6 +238,8 @@ final class Database
 
         self::ensureSqliteColumn($pdo, 'orders', 'stock_deducted_at', 'TEXT', 'NULL');
         self::ensureSqliteColumn($pdo, 'orders', 'order_kind', 'TEXT', "'user'");
+        self::ensureSqliteColumn($pdo, 'orders', 'coupon_code', 'TEXT', 'NULL');
+        self::ensureSqliteColumn($pdo, 'orders', 'coupon_discount', 'REAL', '0');
 
         self::ensureSqliteColumn($pdo, 'products', 'brand_id', 'TEXT', "''");
         self::ensureSqliteColumn($pdo, 'products', 'category_id', 'TEXT', 'NULL');
@@ -265,6 +267,8 @@ final class Database
                 payment_status TEXT NOT NULL DEFAULT 'pending',
                 grand_total REAL NOT NULL DEFAULT 0,
                 currency TEXT NOT NULL DEFAULT 'INR',
+                coupon_code TEXT NULL,
+                coupon_discount REAL NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

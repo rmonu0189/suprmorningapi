@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NULL,
     original_email VARCHAR(255) NULL,
     full_name VARCHAR(255) NULL,
+    referral_code VARCHAR(16) NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     role VARCHAR(50) NOT NULL DEFAULT 'user',
     warehouse_id INT NULL,
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS users (
     PRIMARY KEY (id),
     UNIQUE KEY uq_users_country_phone (country_code, phone),
     UNIQUE KEY uq_users_email (email),
+    UNIQUE KEY uq_users_referral_code (referral_code),
     KEY idx_users_warehouse (warehouse_id),
     CONSTRAINT fk_users_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -436,6 +438,8 @@ CREATE TABLE IF NOT EXISTS orders (
     longitude DECIMAL(10, 7) NOT NULL DEFAULT 0,
     total_price DECIMAL(12, 2) NOT NULL,
     total_charges DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+    coupon_code VARCHAR(128) NULL,
+    coupon_discount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
     gateway_order_id VARCHAR(255) NULL,
     gateway_name VARCHAR(64) NULL DEFAULT 'razorpay',
     order_kind VARCHAR(32) NOT NULL DEFAULT 'user',
@@ -449,6 +453,7 @@ CREATE TABLE IF NOT EXISTS orders (
     KEY idx_orders_user_created (user_id, created_at),
     KEY idx_orders_gateway (gateway_order_id),
     KEY idx_orders_warehouse (warehouse_id),
+    KEY idx_orders_coupon_created (coupon_code, created_at),
     KEY idx_orders_kind_date (order_kind, delivery_date),
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_orders_cart FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE SET NULL,
@@ -586,6 +591,25 @@ CREATE TABLE IF NOT EXISTS payments (
     KEY idx_payments_gateway_order (gateway_order_id),
     CONSTRAINT fk_payments_order FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
     CONSTRAINT fk_payments_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS referrals (
+    id CHAR(36) NOT NULL,
+    referrer_user_id CHAR(36) NOT NULL,
+    referred_user_id CHAR(36) NOT NULL,
+    referral_code VARCHAR(16) NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+    reward_amount DECIMAL(12, 2) NOT NULL DEFAULT 50.00,
+    qualifying_order_id CHAR(36) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_referrals_referred_user (referred_user_id),
+    KEY idx_referrals_referrer_status (referrer_user_id, status, created_at),
+    KEY idx_referrals_order (qualifying_order_id),
+    CONSTRAINT fk_referrals_referrer FOREIGN KEY (referrer_user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_referrals_referred FOREIGN KEY (referred_user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_referrals_order FOREIGN KEY (qualifying_order_id) REFERENCES orders (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS payment_events (

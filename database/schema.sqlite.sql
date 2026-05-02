@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS users (
   country_code TEXT NOT NULL DEFAULT '+91',
   email TEXT NULL UNIQUE,
   full_name TEXT NULL,
+  referral_code TEXT NULL UNIQUE,
   is_active INTEGER NOT NULL DEFAULT 1,
   role TEXT NOT NULL DEFAULT 'user',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -261,6 +262,8 @@ CREATE TABLE IF NOT EXISTS orders (
   longitude REAL NOT NULL DEFAULT 0,
   total_price REAL NOT NULL,
   total_charges REAL NOT NULL DEFAULT 0,
+  coupon_code TEXT NULL,
+  coupon_discount REAL NOT NULL DEFAULT 0,
   gateway_order_id TEXT NULL,
   gateway_name TEXT NULL DEFAULT 'razorpay',
   order_kind TEXT NOT NULL DEFAULT 'user',
@@ -275,6 +278,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_coupon_created ON orders(coupon_code, created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_kind_date ON orders(order_kind, delivery_date);
 
 CREATE TABLE IF NOT EXISTS order_items (
@@ -308,6 +312,24 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_gateway_order ON payments(gateway_order_id);
+
+CREATE TABLE IF NOT EXISTS referrals (
+  id TEXT PRIMARY KEY,
+  referrer_user_id TEXT NOT NULL,
+  referred_user_id TEXT NOT NULL UNIQUE,
+  referral_code TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reward_amount REAL NOT NULL DEFAULT 50.00,
+  qualifying_order_id TEXT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT NULL,
+  FOREIGN KEY (referrer_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (qualifying_order_id) REFERENCES orders(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer_status ON referrals(referrer_user_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_referrals_order ON referrals(qualifying_order_id);
 
 CREATE TABLE IF NOT EXISTS wallet_holds (
   id TEXT PRIMARY KEY,
@@ -457,4 +479,3 @@ VALUES
     'Local Admin', '9109322140', '1 Test Street', 'Bengaluru', 'KA', 'IN', '560001',
     249.00, 0, CURRENT_TIMESTAMP
   );
-

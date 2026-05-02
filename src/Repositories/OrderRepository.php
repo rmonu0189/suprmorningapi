@@ -148,6 +148,8 @@ final class OrderRepository
         float $longitude,
         float $totalPrice,
         float $totalCharges,
+        ?string $couponCode,
+        float $couponDiscount,
         ?string $gatewayOrderId,
         ?string $gatewayName,
         ?array $chargesMetadata
@@ -159,9 +161,9 @@ final class OrderRepository
 
         $sql = 'INSERT INTO orders (id, order_code, user_id, cart_id, address_id, address_label, warehouse_id, order_status, payment_status, delivery_date, delivery_slot,
                 delivery_type, total_mrp, tax, delivery_fee, grand_total, currency, recipient_name, recipient_phone, full_address,
-                city, state, country, postal_code, latitude, longitude, total_price, total_charges, gateway_order_id, gateway_name, charges_metadata)
+                city, state, country, postal_code, latitude, longitude, total_price, total_charges, coupon_code, coupon_discount, gateway_order_id, gateway_name, charges_metadata)
              VALUES (:id, :code, :uid, :cid, :aid, :al, :wid, :os, :ps, :dd, :ds, :dt, :tm, :tx, :df, :gt, :cur, :rn, :rp, :fa, :city, :st, :ctry, :pc, :lat, :lng,
-                :tp, :tc, :go, :gn, :cm)';
+                :tp, :tc, :cc, :cd, :go, :gn, :cm)';
 
         for ($attempt = 0; $attempt < 8; $attempt++) {
             try {
@@ -195,6 +197,8 @@ final class OrderRepository
                     'lng' => $longitude,
                     'tp' => $totalPrice,
                     'tc' => $totalCharges,
+                    'cc' => $couponCode,
+                    'cd' => $couponDiscount,
                     'go' => $gatewayOrderId,
                     'gn' => $gatewayName,
                     'cm' => $metaJson,
@@ -242,6 +246,8 @@ final class OrderRepository
             'lng' => $longitude,
             'tp' => $totalPrice,
             'tc' => $totalCharges,
+            'cc' => $couponCode,
+            'cd' => $couponDiscount,
             'go' => $gatewayOrderId,
             'gn' => $gatewayName,
             'cm' => $metaJson,
@@ -1142,6 +1148,10 @@ final class OrderRepository
         $totalPrice = (float) $r['total_price'];
         $totalCharges = (float) $r['total_charges'];
         $grandTotal = (float) $r['grand_total'];
+        $couponDiscount = isset($r['coupon_discount'])
+            ? (float) $r['coupon_discount']
+            : max(0.0, round(($totalPrice + $totalCharges) - $grandTotal, 2));
+        $couponCode = isset($r['coupon_code']) && $r['coupon_code'] !== '' ? (string) $r['coupon_code'] : null;
         $tax = (float) $r['tax'];
         $deliveryFee = (float) $r['delivery_fee'];
         $billCharges = self::normalizeBillCharges($chargesMeta, $tax, $deliveryFee);
@@ -1174,6 +1184,8 @@ final class OrderRepository
             'postal_code' => (string) $r['postal_code'],
             'total_price' => $totalPrice,
             'total_charges' => $totalCharges,
+            'coupon_code' => $couponCode,
+            'coupon_discount' => $couponDiscount,
             'gateway_order_id' => $r['gateway_order_id'] !== null && $r['gateway_order_id'] !== '' ? (string) $r['gateway_order_id'] : null,
             'gateway_name' => $r['gateway_name'] !== null && $r['gateway_name'] !== '' ? (string) $r['gateway_name'] : null,
             'order_items' => $orderItems,
@@ -1189,7 +1201,8 @@ final class OrderRepository
                 'warehouse_source' => 'order_snapshot',
                 'items_mrp' => $totalMrp,
                 'items_price' => $totalPrice,
-                'coupon_discount' => 0.0,
+                'coupon_code' => $couponCode,
+                'coupon_discount' => $couponDiscount,
                 'charges' => $billCharges,
                 'charges_total' => $totalCharges,
                 'grand_total_price' => $grandTotal,

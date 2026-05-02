@@ -37,6 +37,48 @@ final class AdminDashboardRepository
         return is_array($row) ? (float) ($row['s'] ?? 0) : 0.0;
     }
 
+    public static function totalCouponDiscount(?int $warehouseId = null): float
+    {
+        $sql = "SELECT COALESCE(SUM(
+                    CASE
+                      WHEN coupon_discount > 0 THEN coupon_discount
+                      WHEN coupon_code IS NOT NULL AND coupon_code <> '' AND (total_price + total_charges - grand_total) > 0
+                        THEN (total_price + total_charges - grand_total)
+                      ELSE 0
+                    END
+                ), 0) AS s FROM orders WHERE coupon_code IS NOT NULL AND coupon_code <> ''";
+        $params = [];
+        if ($warehouseId !== null) {
+            $sql .= ' AND warehouse_id = :wid';
+            $params['wid'] = $warehouseId;
+        }
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) ? (float) ($row['s'] ?? 0) : 0.0;
+    }
+
+    public static function totalReferralCredits(?int $warehouseId = null): float
+    {
+        $sql = "SELECT COALESCE(SUM(wt.amount), 0) AS s
+                FROM wallet_transactions wt";
+        $params = [];
+        if ($warehouseId !== null) {
+            $sql .= ' INNER JOIN users u ON u.id = wt.user_id';
+        }
+        $sql .= " WHERE wt.type = 'credit'
+                    AND wt.source = 'referral'
+                    AND wt.status = 'success'";
+        if ($warehouseId !== null) {
+            $sql .= ' AND u.warehouse_id = :wid';
+            $params['wid'] = $warehouseId;
+        }
+        $stmt = Database::connection()->prepare($sql);
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return is_array($row) ? (float) ($row['s'] ?? 0) : 0.0;
+    }
+
     public static function totalOrders(?int $warehouseId = null): int
     {
         if ($warehouseId !== null) {
@@ -127,4 +169,3 @@ final class AdminDashboardRepository
         return $out;
     }
 }
-

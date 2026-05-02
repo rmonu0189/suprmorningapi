@@ -14,7 +14,9 @@ use App\Repositories\AddressRepository;
 use App\Repositories\CartChargeRepository;
 use App\Repositories\CartRepository;
 use App\Repositories\CatalogRepository;
+use App\Repositories\CouponRepository;
 use App\Repositories\WarehouseRepository;
+use App\Services\CouponService;
 
 final class CartController
 {
@@ -69,7 +71,7 @@ final class CartController
      * @param list<array<string,mixed>> $charges
      * @return array<string,mixed>
      */
-    private static function buildBillSummary(array $cartItems, array $charges, int $warehouseId, string $source): array
+    private static function buildBillSummary(array $cartItems, array $charges, int $warehouseId, string $source, ?array $coupon): array
     {
         $itemsMrp = 0.0;
         $itemsPrice = 0.0;
@@ -102,17 +104,27 @@ final class CartController
             ];
         }
 
+        $couponDiscount = CouponService::discount($coupon, $itemsPrice);
+        $payableItemsPrice = max(0.0, $itemsPrice - $couponDiscount);
+
         return [
             'warehouse_id' => $warehouseId,
             'warehouse_source' => $source,
             'items_mrp' => $itemsMrp,
             'items_price' => $itemsPrice,
-            'coupon_discount' => 0.0,
+            'coupon_discount' => $couponDiscount,
             'charges' => $normalizedCharges,
             'charges_total' => $chargesTotal,
-            'grand_total_price' => $itemsPrice + $chargesTotal,
+            'grand_total_price' => $payableItemsPrice + $chargesTotal,
             'grand_total_mrp' => $itemsMrp + $chargesTotal,
         ];
+    }
+
+    /** @param array<string,mixed> $cart */
+    private static function couponForCart(array $cart): ?array
+    {
+        $code = isset($cart['coupon_code']) ? trim((string) $cart['coupon_code']) : '';
+        return $code === '' ? null : CouponRepository::findByCode(strtoupper($code));
     }
 
     private static function haversineKm(float $lat1, float $lon1, float $lat2, float $lon2): float
@@ -164,7 +176,7 @@ final class CartController
         $resolved = self::resolveChargeWarehouse($address);
         $charges = CartChargeRepository::findAllOrdered($resolved['warehouse_id']);
         $cartItems = isset($cart['cart_items']) && is_array($cart['cart_items']) ? $cart['cart_items'] : [];
-        $cart['bill_summary'] = self::buildBillSummary($cartItems, $charges, $resolved['warehouse_id'], $resolved['source']);
+        $cart['bill_summary'] = self::buildBillSummary($cartItems, $charges, $resolved['warehouse_id'], $resolved['source'], self::couponForCart($cart));
         Response::json(['cart' => $cart]);
     }
 
@@ -255,6 +267,58 @@ final class CartController
         }
         $userId = (string) ($claims['sub'] ?? '');
         CartRepository::lockActiveCart($userId);
+        Response::json(['ok' => true]);
+    }
+
+    public function applyCoupon(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        Validator::requireJsonContentType($request);
+        $body = $request->json();
+        $code = strtoupper(trim((string) ($body['code'] ?? '')));
+        if ($code === '') {
+            throw new ValidationException('Coupon code is required', ['code' => 'Required.']);
+        }
+
+        $cart = CartRepository::getOrCreateActiveCartWithItems($userId, Uuid::v4());
+        $cartItems = isset($cart['cart_items']) && is_array($cart['cart_items']) ? $cart['cart_items'] : [];
+        $itemsPrice = 0.0;
+        foreach ($cartItems as $item) {
+            if (!is_array($item)) continue;
+            $itemsPrice += ((float) ($item['unit_price'] ?? 0)) * ((int) ($item['quantity'] ?? 0));
+        }
+        if ($itemsPrice <= 0.0) {
+            throw new ValidationException('Add items before applying coupon', ['cart' => 'Cart is empty.']);
+        }
+
+        $coupon = CouponRepository::findByCode($code);
+        $validation = CouponService::validate($coupon, $itemsPrice);
+        if ($validation['ok'] !== true) {
+            throw new ValidationException($validation['message'] ?? 'Coupon cannot be applied.', ['code' => $validation['message'] ?? 'Invalid coupon.']);
+        }
+
+        CartRepository::setActiveCartCoupon(
+            $userId,
+            (string) $coupon['code'],
+            (string) $coupon['discount_type'],
+            (string) $coupon['discount_value']
+        );
+
+        Response::json(['ok' => true, 'coupon_code' => (string) $coupon['code'], 'discount' => CouponService::discount($coupon, $itemsPrice)]);
+    }
+
+    public function removeCoupon(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        CartRepository::setActiveCartCoupon($userId, null, null, null);
         Response::json(['ok' => true]);
     }
 }

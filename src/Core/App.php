@@ -28,6 +28,7 @@ use App\Controllers\OrderRatingController;
 use App\Controllers\PagesController;
 use App\Controllers\ProductsController;
 use App\Controllers\RazorpayWebhookController;
+use App\Controllers\ReferralController;
 use App\Controllers\VariantsController;
 use App\Controllers\CategoriesController;
 use App\Controllers\SubcategoriesController;
@@ -68,6 +69,7 @@ require_once __DIR__ . '/../Controllers/AdminSubscriptionOrdersController.php';
 require_once __DIR__ . '/../Controllers/ServiceabilityController.php';
 require_once __DIR__ . '/../Controllers/PagesController.php';
 require_once __DIR__ . '/../Controllers/RazorpayWebhookController.php';
+require_once __DIR__ . '/../Controllers/ReferralController.php';
 require_once __DIR__ . '/../Controllers/VariantsController.php';
 require_once __DIR__ . '/../Core/Exceptions/HttpException.php';
 require_once __DIR__ . '/../Core/Exceptions/ValidationException.php';
@@ -91,6 +93,7 @@ require_once __DIR__ . '/../Repositories/RefreshTokenRepository.php';
 require_once __DIR__ . '/../Repositories/PhoneOtpChallengeRepository.php';
 require_once __DIR__ . '/../Services/OtpNotifier.php';
 require_once __DIR__ . '/../Services/AuthService.php';
+require_once __DIR__ . '/../Services/CouponService.php';
 require_once __DIR__ . '/../Repositories/PageRepository.php';
 require_once __DIR__ . '/../Repositories/BrandRepository.php';
 require_once __DIR__ . '/../Repositories/AdminAnalyticsRepository.php';
@@ -109,6 +112,7 @@ require_once __DIR__ . '/../Repositories/LoveRepository.php';
 require_once __DIR__ . '/../Repositories/OrderRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentEventRepository.php';
+require_once __DIR__ . '/../Repositories/ReferralRepository.php';
 require_once __DIR__ . '/../Repositories/CouponRepository.php';
 require_once __DIR__ . '/../Repositories/FileRepository.php';
 require_once __DIR__ . '/../Repositories/SubscriptionRepository.php';
@@ -118,6 +122,7 @@ require_once __DIR__ . '/../Repositories/WalletHoldRepository.php';
 require_once __DIR__ . '/../Repositories/WalletTopupRepository.php';
 require_once __DIR__ . '/../Services/RazorpayService.php';
 require_once __DIR__ . '/../Services/CommerceGatewayPaymentService.php';
+require_once __DIR__ . '/../Services/ReferralService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
 require_once __DIR__ . '/../Services/SubscriptionOrderGenerator.php';
 require_once __DIR__ . '/../Services/SearchScoring.php';
@@ -173,6 +178,7 @@ final class App
         $adminSubscriptions = new AdminSubscriptionsController();
         $adminSubscriptionOrders = new AdminSubscriptionOrdersController();
         $razorpayHook = new RazorpayWebhookController();
+        $referrals = new ReferralController();
         $serviceability = new ServiceabilityController();
         $wallet = new WalletController();
 
@@ -315,6 +321,12 @@ final class App
         $router->add('POST', self::API_PREFIX . '/cart/items/decrease', static function (Request $r) use ($cart): void {
             $cart->decreaseItem($r);
         });
+        $router->add('POST', self::API_PREFIX . '/cart/coupon/apply', static function (Request $r) use ($cart): void {
+            $cart->applyCoupon($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/cart/coupon/remove', static function (Request $r) use ($cart): void {
+            $cart->removeCoupon($r);
+        });
         $router->add('POST', self::API_PREFIX . '/cart/lock', static function (Request $r) use ($cart): void {
             $cart->lock($r);
         });
@@ -416,6 +428,9 @@ final class App
         $router->add('GET', self::API_PREFIX . '/wallet', static function (Request $r) use ($wallet): void {
             $wallet->show($r);
         });
+        $router->add('GET', self::API_PREFIX . '/referrals/me', static function (Request $r) use ($referrals): void {
+            $referrals->me($r);
+        });
         $router->add('POST', self::API_PREFIX . '/wallet/add-funds/create-order', static function (Request $r) use ($wallet): void {
             $wallet->createAddFundsOrder($r);
         });
@@ -458,6 +473,9 @@ final class App
 
         $router->add('GET', self::API_PREFIX . '/admin/analytics/overview', static function (Request $r) use ($adminAnalytics): void {
             $adminAnalytics->overview($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/admin/analytics/coupons', static function (Request $r) use ($adminAnalytics): void {
+            $adminAnalytics->coupons($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/dashboard/summary', static function (Request $r) use ($adminDashboard): void {

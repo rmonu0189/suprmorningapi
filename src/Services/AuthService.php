@@ -14,6 +14,7 @@ use App\Core\Uuid;
 use App\Repositories\OrderRepository;
 use App\Repositories\PhoneOtpChallengeRepository;
 use App\Repositories\RefreshTokenRepository;
+use App\Repositories\ReferralRepository;
 use App\Repositories\SubscriptionOrderGenerationRepository;
 use App\Repositories\SubscriptionRepository;
 use App\Repositories\UserRepository;
@@ -88,6 +89,7 @@ final class AuthService
         $isExisting = UserRepository::phoneTaken($phone, $countryCode);
         $registerFullName = null;
         $registerEmail = null;
+        $referrer = null;
 
         if (!$isExisting) {
             if (!$this->isMobileRegistrationClient($body)) {
@@ -97,6 +99,16 @@ final class AuthService
             $registerEmail = $this->parseOptionalRegisterEmail($body['email'] ?? null);
             if ($registerEmail !== null && UserRepository::emailTaken($registerEmail)) {
                 throw new HttpException('Email already in use', 409);
+            }
+            $rawReferralCode = $body['referral_code'] ?? null;
+            if (is_string($rawReferralCode) && trim($rawReferralCode) !== '') {
+                $referralCode = ReferralRepository::normalizeCode($rawReferralCode);
+                if ($referralCode === null) {
+                    throw new ValidationException('Invalid referral code', [
+                        'referral_code' => 'Enter a valid referral code.',
+                    ]);
+                }
+                $referrer = ReferralService::validateReferralCode($referralCode);
             }
         }
 
@@ -142,7 +154,7 @@ final class AuthService
             return $this->completeLoginAfterOtp($phone, $countryCode, $userAgent, $deviceLabel);
         }
 
-        return $this->completeRegisterAfterOtp($phone, $countryCode, $registerFullName, $registerEmail, $userAgent, $deviceLabel);
+        return $this->completeRegisterAfterOtp($phone, $countryCode, $registerFullName, $registerEmail, $userAgent, $deviceLabel, $referrer);
     }
 
     /**
@@ -292,7 +304,8 @@ final class AuthService
         ?string $fullName,
         ?string $email,
         ?string $userAgent,
-        ?string $deviceLabel
+        ?string $deviceLabel,
+        ?array $referrer
     ): array {
         if (UserRepository::phoneTaken($phone, $countryCode)) {
             throw new HttpException('Account already exists', 409);
@@ -302,6 +315,10 @@ final class AuthService
 
         try {
             UserRepository::insert($id, $phone, $countryCode, $email, $fullName, true);
+            ReferralRepository::ensureReferralCode($id);
+            if ($referrer !== null) {
+                ReferralRepository::createPending((string) $referrer['id'], $id, (string) $referrer['referral_code']);
+            }
         } catch (PDOException $e) {
             if ($e->getCode() === '23000') {
                 throw new HttpException('Account already exists', 409);
@@ -517,6 +534,7 @@ final class AuthService
                 'country_code' => $user['country_code'] ?? UserRepository::DEFAULT_COUNTRY_CODE,
                 'email' => $user['email'],
                 'full_name' => $user['full_name'],
+                'referral_code' => $user['referral_code'] ?? null,
                 'role' => $role,
                 'is_active' => $user['is_active'],
                 'created_at' => $user['created_at'],

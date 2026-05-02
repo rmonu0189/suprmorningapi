@@ -43,6 +43,7 @@ final class CommerceGatewayPaymentService
             }
 
             if ((string) ($row['payment_status'] ?? '') === 'success') {
+                ReferralService::completeForSuccessfulOrder($userId, $orderId);
                 $pdo->commit();
 
                 return;
@@ -102,6 +103,7 @@ final class CommerceGatewayPaymentService
 
             OrderRepository::updatePaymentStatusByOrderIdIfPending($orderId, 'success');
             PaymentRepository::updateStatusByGatewayOrderId($gatewayOrderId, 'success');
+            ReferralService::completeForSuccessfulOrder($userId, $orderId);
 
             $pdo->commit();
         } catch (\Throwable $e) {

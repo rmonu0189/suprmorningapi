@@ -345,6 +345,8 @@ final class SubscriptionOrderGenerator
                 $lng,
                 $totalPrice,
                 $totalCharges,
+                null,
+                0.0,
                 $gatewayOrderId,
                 'wallet',
                 $otherChargesValue !== [] ? $otherChargesValue : null
@@ -497,4 +499,3 @@ final class SubscriptionOrderGenerator
         return implode(', ', $out);
     }
 }
-

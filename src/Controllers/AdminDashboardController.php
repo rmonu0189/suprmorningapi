@@ -52,16 +52,19 @@ final class AdminDashboardController
                 'total_users' => AdminDashboardRepository::totalUsers($warehouseId),
                 'total_orders' => AdminDashboardRepository::totalOrders($warehouseId),
                 'total_revenue_success' => AdminDashboardRepository::totalRevenueSuccess($warehouseId),
+                'total_coupon_discount_success' => AdminDashboardRepository::totalCouponDiscount($warehouseId),
+                'total_referral_credits' => AdminDashboardRepository::totalReferralCredits($warehouseId),
             ],
             'today' => [
                 'date' => $today,
                 'orders_created' => (int) ($todayOverview['orders_created'] ?? 0),
                 'orders_success' => (int) ($todayOverview['orders_success'] ?? 0),
                 'revenue_success' => (float) ($todayOverview['revenue_success'] ?? 0),
+                'coupon_discount_success' => (float) ($todayOverview['coupon_discount_success'] ?? 0),
+                'referral_credits' => (float) ($todayOverview['referral_credits'] ?? 0),
                 'users_created' => (int) ($todayOverview['users_created'] ?? 0),
             ],
             'recent_orders' => AdminDashboardRepository::recentSuccessOrders(5, $warehouseId),
         ]);
     }
 }
-

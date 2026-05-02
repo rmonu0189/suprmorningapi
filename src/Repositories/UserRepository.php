@@ -47,8 +47,9 @@ final class UserRepository
     /** @return array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
     public static function findById(string $id): ?array
     {
+        $referralSelect = ReferralRepository::usersTableHasReferralCodeColumn() ? ', referral_code' : '';
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, country_code, email, full_name, is_active, role, warehouse_id, created_at FROM users WHERE id = :id LIMIT 1'
+            'SELECT id, phone, country_code, email, full_name' . $referralSelect . ', is_active, role, warehouse_id, created_at FROM users WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -66,6 +67,7 @@ final class UserRepository
             'country_code' => isset($row['country_code']) && $row['country_code'] !== null && $row['country_code'] !== '' ? (string) $row['country_code'] : self::DEFAULT_COUNTRY_CODE,
             'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
             'full_name' => $fn !== null && $fn !== '' ? (string) $fn : null,
+            'referral_code' => isset($row['referral_code']) && $row['referral_code'] !== null && $row['referral_code'] !== '' ? (string) $row['referral_code'] : null,
             'is_active' => (bool) (int) $row['is_active'],
             'role' => $role !== null && $role !== '' ? (string) $role : self::DEFAULT_ROLE,
             'warehouse_id' => isset($row['warehouse_id']) && $row['warehouse_id'] !== null ? (int) $row['warehouse_id'] : null,
@@ -98,8 +100,9 @@ final class UserRepository
     {
         $p = trim($phone);
         if ($p === '') return null;
+        $referralSelect = ReferralRepository::usersTableHasReferralCodeColumn() ? ', referral_code' : '';
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, country_code, email, full_name, is_active, role, warehouse_id, created_at
+            'SELECT id, phone, country_code, email, full_name' . $referralSelect . ', is_active, role, warehouse_id, created_at
              FROM users WHERE phone = :phone AND country_code = :country_code LIMIT 1'
         );
         $stmt->execute(['phone' => $p, 'country_code' => $countryCode]);
@@ -232,6 +235,7 @@ final class UserRepository
             'country_code' => isset($row['country_code']) && $row['country_code'] !== null && $row['country_code'] !== '' ? (string) $row['country_code'] : self::DEFAULT_COUNTRY_CODE,
             'email' => $row['email'] !== null && $row['email'] !== '' ? (string) $row['email'] : null,
             'full_name' => $row['full_name'] !== null && $row['full_name'] !== '' ? (string) $row['full_name'] : null,
+            'referral_code' => isset($row['referral_code']) && $row['referral_code'] !== null && $row['referral_code'] !== '' ? (string) $row['referral_code'] : null,
             'is_active' => (bool) (int) $row['is_active'],
             'role' => (string) ($row['role'] ?? self::DEFAULT_ROLE),
             'warehouse_id' => isset($row['warehouse_id']) && $row['warehouse_id'] !== null ? (int) $row['warehouse_id'] : null,

@@ -45,5 +45,32 @@ final class AdminAnalyticsController
             'overview' => $overview,
         ]);
     }
-}
 
+    public function coupons(Request $request): void
+    {
+        if (AuthMiddleware::requireAdmin($request) === null) {
+            return;
+        }
+
+        $from = trim((string) ($request->query('from') ?? ''));
+        $to = trim((string) ($request->query('to') ?? ''));
+        if ($from === '') {
+            $from = date('Y-m-01');
+        }
+        if ($to === '') {
+            $to = date('Y-m-d', strtotime('tomorrow'));
+        }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
+            Response::json(['error' => 'Invalid date range'], 422);
+            return;
+        }
+
+        $usage = AdminAnalyticsRepository::couponUsage($from . ' 00:00:00', $to . ' 00:00:00');
+        Response::json([
+            'from' => $from,
+            'to' => $to,
+            'summary' => $usage['summary'],
+            'orders' => $usage['orders'],
+        ]);
+    }
+}

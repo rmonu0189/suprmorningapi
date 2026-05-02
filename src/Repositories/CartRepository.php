@@ -41,6 +41,21 @@ final class CartRepository
         $stmt->execute(['uid' => $userId]);
     }
 
+    public static function setActiveCartCoupon(string $userId, ?string $code, ?string $discountType, ?string $discountValue): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE carts SET coupon_code = :code, discount_type = :discount_type, discount_value = :discount_value
+             WHERE user_id = :uid AND status = :st'
+        );
+        $stmt->execute([
+            'uid' => $userId,
+            'st' => 'active',
+            'code' => $code,
+            'discount_type' => $discountType,
+            'discount_value' => $discountValue,
+        ]);
+    }
+
     /** @return array<string, mixed> cart + cart_items with nested variants */
     public static function getActiveCartWithItems(string $userId): ?array
     {
