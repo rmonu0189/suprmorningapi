@@ -25,6 +25,7 @@ use App\Controllers\InventoryMovementsController;
 use App\Controllers\LoveController;
 use App\Controllers\OrderController;
 use App\Controllers\OrderRatingController;
+use App\Controllers\OrderSupportController;
 use App\Controllers\PagesController;
 use App\Controllers\ProductsController;
 use App\Controllers\RazorpayWebhookController;
@@ -60,6 +61,7 @@ require_once __DIR__ . '/../Controllers/InventoryMovementsController.php';
 require_once __DIR__ . '/../Controllers/LoveController.php';
 require_once __DIR__ . '/../Controllers/OrderController.php';
 require_once __DIR__ . '/../Controllers/OrderRatingController.php';
+require_once __DIR__ . '/../Controllers/OrderSupportController.php';
 require_once __DIR__ . '/../Controllers/ProductsController.php';
 require_once __DIR__ . '/../Controllers/CategoriesController.php';
 require_once __DIR__ . '/../Controllers/SubcategoriesController.php';
@@ -110,6 +112,7 @@ require_once __DIR__ . '/../Repositories/InventoryMovementRepository.php';
 require_once __DIR__ . '/../Repositories/AddressRepository.php';
 require_once __DIR__ . '/../Repositories/LoveRepository.php';
 require_once __DIR__ . '/../Repositories/OrderRepository.php';
+require_once __DIR__ . '/../Repositories/OrderSupportRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentEventRepository.php';
 require_once __DIR__ . '/../Repositories/ReferralRepository.php';
@@ -158,6 +161,7 @@ final class App
         $search = new SearchController();
         $orders = new OrderController();
         $orderRatings = new OrderRatingController();
+        $orderSupport = new OrderSupportController();
         $adminOrders = new AdminOrderController();
         $adminDelivery = new AdminDeliveryController();
         $adminAnalytics = new AdminAnalyticsController();
@@ -401,6 +405,12 @@ final class App
         $router->add('POST', self::API_PREFIX . '/orders/reorder', static function (Request $r) use ($orders): void {
             $orders->reorder($r);
         });
+        $router->add('GET', self::API_PREFIX . '/orders/support', static function (Request $r) use ($orderSupport): void {
+            $orderSupport->byOrder($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/orders/support', static function (Request $r) use ($orderSupport): void {
+            $orderSupport->createOrMessage($r);
+        });
         $router->add('GET', self::API_PREFIX . '/orders/ratings', static function (Request $r) use ($orderRatings): void {
             $orderRatings->byOrder($r);
         });
@@ -449,6 +459,15 @@ final class App
         });
         $router->add('PATCH', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->patch($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/admin/support', static function (Request $r) use ($orderSupport): void {
+            $orderSupport->adminIndex($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/admin/support/reply', static function (Request $r) use ($orderSupport): void {
+            $orderSupport->adminReply($r);
+        });
+        $router->add('PATCH', self::API_PREFIX . '/admin/support', static function (Request $r) use ($orderSupport): void {
+            $orderSupport->adminPatch($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/warehouses', static function (Request $r) use ($adminWarehouses): void {
