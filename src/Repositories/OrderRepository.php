@@ -616,17 +616,22 @@ final class OrderRepository
         ?string $changedByUserId = null
     ): void {
         $pdo = Database::connection();
+        $notifyDelivered = null;
         $pdo->beginTransaction();
         try {
             $prevStatus = null;
             $prevDeductedAt = null;
+            $userId = null;
+            $orderCode = '';
             if ($orderStatusProvided) {
-                $stmtPrev = $pdo->prepare('SELECT order_status, stock_deducted_at FROM orders WHERE id = :id LIMIT 1');
+                $stmtPrev = $pdo->prepare('SELECT order_status, stock_deducted_at, user_id, order_code FROM orders WHERE id = :id LIMIT 1');
                 $stmtPrev->execute(['id' => $orderId]);
                 $row = $stmtPrev->fetch(PDO::FETCH_ASSOC);
                 if (is_array($row)) {
                     $prevStatus = isset($row['order_status']) && is_string($row['order_status']) ? $row['order_status'] : null;
                     $prevDeductedAt = $row['stock_deducted_at'] ?? null;
+                    $userId = isset($row['user_id']) ? (string) $row['user_id'] : null;
+                    $orderCode = isset($row['order_code']) ? (string) $row['order_code'] : '';
                 }
             }
 
@@ -660,6 +665,14 @@ final class OrderRepository
                         'cb' => $changedByUserId,
                         'note' => null,
                     ]);
+
+                    if ($newStatus === 'delivered' && $userId !== null) {
+                        $notifyDelivered = [
+                            'user_id' => $userId,
+                            'order_code' => $orderCode !== '' ? $orderCode : substr($orderId, 0, 8),
+                            'order_id' => $orderId,
+                        ];
+                    }
                 }
 
                 // When order is marked packed, deduct stock once (idempotent).
@@ -669,6 +682,14 @@ final class OrderRepository
             }
 
             $pdo->commit();
+
+            if (is_array($notifyDelivered)) {
+                \App\Services\PushNotificationService::notifyOrderDelivered(
+                    (string) $notifyDelivered['user_id'],
+                    (string) $notifyDelivered['order_code'],
+                    (string) $notifyDelivered['order_id']
+                );
+            }
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

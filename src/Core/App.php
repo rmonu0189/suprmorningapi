@@ -40,11 +40,13 @@ use App\Controllers\AdminSubscriptionOrdersController;
 use App\Controllers\ServiceabilityController;
 use App\Controllers\SearchController;
 use App\Controllers\WalletController;
+use App\Controllers\AdminNotificationController;
 
 require_once __DIR__ . '/../Controllers/AdminOrderController.php';
 require_once __DIR__ . '/../Controllers/AdminDeliveryController.php';
 require_once __DIR__ . '/../Controllers/AdminDashboardController.php';
 require_once __DIR__ . '/../Controllers/AdminUsersController.php';
+require_once __DIR__ . '/../Controllers/AdminNotificationController.php';
 require_once __DIR__ . '/../Controllers/AdminAnalyticsController.php';
 require_once __DIR__ . '/../Controllers/AdminWarehouseController.php';
 require_once __DIR__ . '/../Controllers/AdminVariantTagsController.php';
@@ -131,6 +133,7 @@ require_once __DIR__ . '/../Services/CommerceGatewayPaymentService.php';
 require_once __DIR__ . '/../Services/ReferralService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
 require_once __DIR__ . '/../Services/SubscriptionOrderGenerator.php';
+require_once __DIR__ . '/../Services/PushNotificationService.php';
 require_once __DIR__ . '/../Services/SearchScoring.php';
 require_once __DIR__ . '/../Repositories/GlobalSearchRepository.php';
 require_once __DIR__ . '/../Controllers/SearchController.php';
@@ -171,6 +174,7 @@ final class App
         $adminAnalytics = new AdminAnalyticsController();
         $adminDashboard = new AdminDashboardController();
         $adminUsers = new AdminUsersController();
+        $adminNotifications = new AdminNotificationController();
         $adminWarehouses = new AdminWarehouseController();
         $adminVariantTags = new AdminVariantTagsController();
         $adminUploads = new AdminUploadsController();
@@ -512,6 +516,12 @@ final class App
 
         $router->add('GET', self::API_PREFIX . '/admin/dashboard/summary', static function (Request $r) use ($adminDashboard): void {
             $adminDashboard->summary($r);
+        });
+        $router->add('GET', self::API_PREFIX . '/admin/notifications', static function (Request $r) use ($adminNotifications): void {
+            $adminNotifications->index($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/admin/notifications/send', static function (Request $r) use ($adminNotifications): void {
+            $adminNotifications->send($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/admin/users', static function (Request $r) use ($adminUsers): void {

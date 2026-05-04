@@ -2,3 +2,7 @@
 .DS_Store
 /storage/logs/*.log
 /vendor/
+
+# Firebase service accounts
+firebase-service-account.json
+*-firebase-adminsdk-*.json
