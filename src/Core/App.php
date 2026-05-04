@@ -23,6 +23,7 @@ use App\Controllers\FilesController;
 use App\Controllers\InventoryController;
 use App\Controllers\InventoryMovementsController;
 use App\Controllers\LoveController;
+use App\Controllers\NotificationsController;
 use App\Controllers\OrderController;
 use App\Controllers\OrderRatingController;
 use App\Controllers\OrderSupportController;
@@ -59,6 +60,7 @@ require_once __DIR__ . '/../Controllers/CouponsController.php';
 require_once __DIR__ . '/../Controllers/InventoryController.php';
 require_once __DIR__ . '/../Controllers/InventoryMovementsController.php';
 require_once __DIR__ . '/../Controllers/LoveController.php';
+require_once __DIR__ . '/../Controllers/NotificationsController.php';
 require_once __DIR__ . '/../Controllers/OrderController.php';
 require_once __DIR__ . '/../Controllers/OrderRatingController.php';
 require_once __DIR__ . '/../Controllers/OrderSupportController.php';
@@ -111,6 +113,7 @@ require_once __DIR__ . '/../Repositories/InventoryRepository.php';
 require_once __DIR__ . '/../Repositories/InventoryMovementRepository.php';
 require_once __DIR__ . '/../Repositories/AddressRepository.php';
 require_once __DIR__ . '/../Repositories/LoveRepository.php';
+require_once __DIR__ . '/../Repositories/PushNotificationDeviceRepository.php';
 require_once __DIR__ . '/../Repositories/OrderRepository.php';
 require_once __DIR__ . '/../Repositories/OrderSupportRepository.php';
 require_once __DIR__ . '/../Repositories/PaymentRepository.php';
@@ -157,6 +160,7 @@ final class App
         $cartChargesAdmin = new CartChargesController();
         $addresses = new AddressController();
         $loves = new LoveController();
+        $notifications = new NotificationsController();
         $catalog = new CatalogController();
         $search = new SearchController();
         $orders = new OrderController();
@@ -311,6 +315,12 @@ final class App
         });
         $router->add('POST', self::API_PREFIX . '/auth/delete-account', static function (Request $r) use ($auth): void {
             $auth->deleteAccount($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/notifications/devices', static function (Request $r) use ($notifications): void {
+            $notifications->registerDevice($r);
+        });
+        $router->add('DELETE', self::API_PREFIX . '/notifications/devices', static function (Request $r) use ($notifications): void {
+            $notifications->unregisterDevice($r);
         });
 
         $router->add('GET', self::API_PREFIX . '/cart/charges', static function (Request $r) use ($cart): void {
