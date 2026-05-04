@@ -395,8 +395,21 @@ final class OrderRepository
     public static function findForUserExcludingPayment(string $userId, int $offset, int $limit): array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT * FROM orders WHERE user_id = :uid AND payment_status != :pend
-             ORDER BY created_at DESC, id DESC LIMIT :lim OFFSET :off'
+            'SELECT o.*,
+                    EXISTS (
+                        SELECT 1
+                        FROM order_item_ratings oir
+                        WHERE oir.order_id = o.id AND oir.user_id = o.user_id
+                        LIMIT 1
+                    ) OR EXISTS (
+                        SELECT 1
+                        FROM order_delivery_ratings odr
+                        WHERE odr.order_id = o.id AND odr.user_id = o.user_id
+                        LIMIT 1
+                    ) AS rated
+             FROM orders o
+             WHERE o.user_id = :uid AND o.payment_status != :pend
+             ORDER BY o.created_at DESC, o.id DESC LIMIT :lim OFFSET :off'
         );
         $stmt->bindValue('uid', $userId, PDO::PARAM_STR);
         $stmt->bindValue('pend', 'pending', PDO::PARAM_STR);
@@ -1066,7 +1079,21 @@ final class OrderRepository
     public static function findByIdForUser(string $orderId, string $userId): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT * FROM orders WHERE id = :id AND user_id = :uid LIMIT 1'
+            'SELECT o.*,
+                    EXISTS (
+                        SELECT 1
+                        FROM order_item_ratings oir
+                        WHERE oir.order_id = o.id AND oir.user_id = o.user_id
+                        LIMIT 1
+                    ) OR EXISTS (
+                        SELECT 1
+                        FROM order_delivery_ratings odr
+                        WHERE odr.order_id = o.id AND odr.user_id = o.user_id
+                        LIMIT 1
+                    ) AS rated
+             FROM orders o
+             WHERE o.id = :id AND o.user_id = :uid
+             LIMIT 1'
         );
         $stmt->execute(['id' => $orderId, 'uid' => $userId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1127,8 +1154,21 @@ final class OrderRepository
     public static function findByGatewayForUser(string $gatewayOrderId, string $userId): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT * FROM orders WHERE gateway_order_id = :go AND user_id = :uid
-             ORDER BY created_at DESC, id DESC LIMIT 1'
+            'SELECT o.*,
+                    EXISTS (
+                        SELECT 1
+                        FROM order_item_ratings oir
+                        WHERE oir.order_id = o.id AND oir.user_id = o.user_id
+                        LIMIT 1
+                    ) OR EXISTS (
+                        SELECT 1
+                        FROM order_delivery_ratings odr
+                        WHERE odr.order_id = o.id AND odr.user_id = o.user_id
+                        LIMIT 1
+                    ) AS rated
+             FROM orders o
+             WHERE o.gateway_order_id = :go AND o.user_id = :uid
+             ORDER BY o.created_at DESC, o.id DESC LIMIT 1'
         );
         $stmt->execute(['go' => $gatewayOrderId, 'uid' => $userId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1255,6 +1295,7 @@ final class OrderRepository
             'order_code' => isset($r['order_code']) && $r['order_code'] !== '' ? (string) $r['order_code'] : null,
             'order_status' => (string) $r['order_status'],
             'payment_status' => (string) $r['payment_status'],
+            'rated' => isset($r['rated']) ? ((int) $r['rated']) === 1 : false,
             'delivery_date' => $deliveryDateStr,
             'delivery_slot' => $r['delivery_slot'] !== null && $r['delivery_slot'] !== '' ? (string) $r['delivery_slot'] : '',
             'delivery_type' => $r['delivery_type'] !== null && $r['delivery_type'] !== '' ? (string) $r['delivery_type'] : '',
