@@ -65,7 +65,8 @@ final class FilesController
             return;
         }
 
-        Response::file($absReal, (string) $file['mime'], (string) ($file['original_name'] ?? ''));
+        $download = trim((string) ($request->query('download') ?? ''));
+        $asAttachment = $download === '1' || strtolower($download) === 'true';
+        Response::file($absReal, (string) $file['mime'], (string) ($file['original_name'] ?? ''), $asAttachment);
     }
 }
-

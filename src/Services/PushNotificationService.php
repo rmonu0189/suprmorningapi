@@ -75,8 +75,11 @@ final class PushNotificationService
         $title = "Order Delivered! 🎉";
         $subtitle = "Freshness at your doorstep";
         $body = "Your order #{$orderCode} has been delivered. Enjoy your morning!";
+        $url = 'suprmorning://order_details?orderId=' . rawurlencode($orderId);
         $data = [
+            'url' => $url,
             'screen' => 'OrderDetails',
+            'orderId' => $orderId,
             'params' => [
                 'orderId' => $orderId
             ]

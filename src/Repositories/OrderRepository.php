@@ -607,6 +607,66 @@ final class OrderRepository
         return $out;
     }
 
+    /** @return array<string, mixed>|null */
+    public static function findInvoiceFileForOrder(string $orderId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT f.id, f.created_at, f.created_by, f.kind, f.storage_path, f.original_name, f.mime, f.size_bytes, f.access_key, f.is_active,
+                    o.invoice_number
+             FROM orders o
+             INNER JOIN files f ON f.id = o.invoice_file_id
+             WHERE o.id = :id AND f.is_active = 1
+             LIMIT 1'
+        );
+        $stmt->execute(['id' => $orderId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public static function attachInvoice(string $orderId, string $fileId, string $invoiceNumber): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE orders
+             SET invoice_file_id = :fid,
+                 invoice_number = :num,
+                 invoice_generated_at = CURRENT_TIMESTAMP,
+                 invoice_status = \'generated\',
+                 invoice_error = NULL
+             WHERE id = :id AND invoice_file_id IS NULL'
+        );
+        $stmt->execute([
+            'fid' => $fileId,
+            'num' => $invoiceNumber,
+            'id' => $orderId,
+        ]);
+    }
+
+    public static function markInvoicePending(string $orderId): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE orders
+             SET invoice_status = \'pending\', invoice_error = NULL
+             WHERE id = :id AND invoice_file_id IS NULL'
+        );
+        $stmt->execute(['id' => $orderId]);
+    }
+
+    public static function markInvoiceFailed(string $orderId, string $error): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE orders
+             SET invoice_status = \'failed\',
+                 invoice_error = :err,
+                 invoice_attempts = COALESCE(invoice_attempts, 0) + 1
+             WHERE id = :id AND invoice_file_id IS NULL'
+        );
+        $stmt->execute([
+            'id' => $orderId,
+            'err' => substr($error, 0, 1000),
+        ]);
+    }
+
     public static function updateAdminFulfillment(
         string $orderId,
         ?string $orderStatus,
@@ -617,6 +677,7 @@ final class OrderRepository
     ): void {
         $pdo = Database::connection();
         $notifyDelivered = null;
+        $generateInvoiceOrderId = null;
         $pdo->beginTransaction();
         try {
             $prevStatus = null;
@@ -667,6 +728,8 @@ final class OrderRepository
                     ]);
 
                     if ($newStatus === 'delivered' && $userId !== null) {
+                        self::markInvoicePending($orderId);
+                        $generateInvoiceOrderId = $orderId;
                         $notifyDelivered = [
                             'user_id' => $userId,
                             'order_code' => $orderCode !== '' ? $orderCode : substr($orderId, 0, 8),
@@ -682,6 +745,10 @@ final class OrderRepository
             }
 
             $pdo->commit();
+
+            if ($generateInvoiceOrderId !== null) {
+                \App\Services\InvoiceService::tryGenerateForDeliveredOrder($generateInvoiceOrderId);
+            }
 
             if (is_array($notifyDelivered)) {
                 \App\Services\PushNotificationService::notifyOrderDelivered(
@@ -1213,6 +1280,11 @@ final class OrderRepository
             'created_at' => (string) $r['created_at'],
             'status_changed_at' => $statusChangedAt,
             'delivered_at' => $deliveredAt !== null && $deliveredAt !== '' ? (string) $deliveredAt : null,
+            'invoice_status' => isset($r['invoice_status']) && $r['invoice_status'] !== '' ? (string) $r['invoice_status'] : null,
+            'invoice_number' => isset($r['invoice_number']) && $r['invoice_number'] !== '' ? (string) $r['invoice_number'] : null,
+            'invoice_generated_at' => isset($r['invoice_generated_at']) && $r['invoice_generated_at'] !== '' ? (string) $r['invoice_generated_at'] : null,
+            'invoice_error' => isset($r['invoice_error']) && $r['invoice_error'] !== '' ? (string) $r['invoice_error'] : null,
+            'invoice_attempts' => isset($r['invoice_attempts']) ? (int) $r['invoice_attempts'] : 0,
             'delivery_agent' => $deliveryAgent,
             'charges_metadata' => $chargesMeta,
             'bill_summary' => [

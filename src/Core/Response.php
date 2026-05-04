@@ -13,7 +13,7 @@ final class Response
         echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
-    public static function file(string $absolutePath, string $mime, string $downloadName = ''): void
+    public static function file(string $absolutePath, string $mime, string $downloadName = '', bool $asAttachment = false): void
     {
         if (!is_file($absolutePath)) {
             self::json(['error' => 'Not Found'], 404);
@@ -32,11 +32,12 @@ final class Response
         header('X-Content-Type-Options: nosniff');
 
         // Inline by default (images should render). Optional filename when present.
+        $disposition = $asAttachment ? 'attachment' : 'inline';
         if ($downloadName !== '') {
             $safe = str_replace(["\r", "\n", '"'], '', $downloadName);
-            header('Content-Disposition: inline; filename="' . $safe . '"');
+            header('Content-Disposition: ' . $disposition . '; filename="' . $safe . '"');
         } else {
-            header('Content-Disposition: inline');
+            header('Content-Disposition: ' . $disposition);
         }
 
         readfile($absolutePath);

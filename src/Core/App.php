@@ -134,6 +134,7 @@ require_once __DIR__ . '/../Services/ReferralService.php';
 require_once __DIR__ . '/../Services/OrderPlacementService.php';
 require_once __DIR__ . '/../Services/SubscriptionOrderGenerator.php';
 require_once __DIR__ . '/../Services/PushNotificationService.php';
+require_once __DIR__ . '/../Services/InvoiceService.php';
 require_once __DIR__ . '/../Services/SearchScoring.php';
 require_once __DIR__ . '/../Repositories/GlobalSearchRepository.php';
 require_once __DIR__ . '/../Controllers/SearchController.php';
@@ -410,6 +411,9 @@ final class App
         $router->add('GET', self::API_PREFIX . '/orders/by-id', static function (Request $r) use ($orders): void {
             $orders->byId($r);
         });
+        $router->add('GET', self::API_PREFIX . '/orders/invoice', static function (Request $r) use ($orders): void {
+            $orders->invoice($r);
+        });
         $router->add('GET', self::API_PREFIX . '/orders/by-gateway', static function (Request $r) use ($orders): void {
             $orders->byGateway($r);
         });
@@ -476,6 +480,9 @@ final class App
         });
         $router->add('PATCH', self::API_PREFIX . '/admin/orders', static function (Request $r) use ($adminOrders): void {
             $adminOrders->patch($r);
+        });
+        $router->add('POST', self::API_PREFIX . '/admin/orders/invoice/retry', static function (Request $r) use ($adminOrders): void {
+            $adminOrders->retryInvoice($r);
         });
         $router->add('GET', self::API_PREFIX . '/admin/support', static function (Request $r) use ($orderSupport): void {
             $orderSupport->adminIndex($r);

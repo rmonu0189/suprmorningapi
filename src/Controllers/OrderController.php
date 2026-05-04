@@ -14,6 +14,7 @@ use App\Middleware\AuthMiddleware;
 use App\Repositories\CartRepository;
 use App\Repositories\OrderRepository;
 use App\Services\CommerceGatewayPaymentService;
+use App\Services\InvoiceService;
 use App\Services\OrderPlacementService;
 
 final class OrderController
@@ -152,6 +153,23 @@ final class OrderController
             return;
         }
         Response::json(['order' => $order]);
+    }
+
+    public function invoice(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        $id = trim((string) ($request->query('order_id') ?? ''));
+        if ($id === '' || !Uuid::isValid($id)) {
+            Response::json(['error' => 'Invalid order_id'], 422);
+            return;
+        }
+
+        $invoice = InvoiceService::ensureForUserDeliveredOrder($id, $userId);
+        Response::json(['invoice' => $invoice]);
     }
 
     public function byGateway(Request $request): void

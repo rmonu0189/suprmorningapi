@@ -12,6 +12,7 @@ use App\Core\Validator;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\OrderRepository;
 use App\Repositories\UserRepository;
+use App\Services\InvoiceService;
 
 final class AdminOrderController
 {
@@ -207,5 +208,44 @@ final class AdminOrderController
         }
 
         Response::json(['order' => $order]);
+    }
+
+    public function retryInvoice(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAdmin($request);
+        if ($claims === null) {
+            return;
+        }
+
+        Validator::requireJsonContentType($request);
+        $body = $request->json();
+        $id = trim((string) ($body['id'] ?? ''));
+        if ($id === '' || !Uuid::isValid($id)) {
+            throw new ValidationException('Invalid id', ['id' => 'A valid UUID is required.']);
+        }
+
+        $order = OrderRepository::findByIdForAdmin($id);
+        if ($order === null) {
+            Response::json(['error' => 'Not Found'], 404);
+            return;
+        }
+
+        $role = (string) ($claims['role'] ?? '');
+        $sub = (string) ($claims['sub'] ?? '');
+        if (($role === 'staff' || $role === 'manager' || $role === 'delivery') && $sub !== '') {
+            $wid = UserRepository::findWarehouseId($sub);
+            $orderWid = OrderRepository::findWarehouseIdForOrder($id);
+            if ($wid === null || $orderWid === null || $wid !== $orderWid) {
+                Response::json(['error' => 'Not Found'], 404);
+                return;
+            }
+        }
+
+        $invoice = InvoiceService::retryForDeliveredOrder($id);
+        $fresh = OrderRepository::findByIdForAdmin($id);
+        Response::json([
+            'invoice' => $invoice,
+            'order' => $fresh ?? $order,
+        ]);
     }
 }

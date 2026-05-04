@@ -170,6 +170,22 @@ CREATE TABLE IF NOT EXISTS variant_tag_master (
 
 CREATE INDEX IF NOT EXISTS idx_variant_tag_master_status_sort ON variant_tag_master(status, sort_order, name);
 
+CREATE TABLE IF NOT EXISTS files (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by TEXT NULL,
+  kind TEXT NOT NULL DEFAULT 'misc',
+  storage_path TEXT NOT NULL,
+  original_name TEXT NULL,
+  mime TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  access_key TEXT NOT NULL UNIQUE,
+  is_active INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_files_kind ON files(kind);
+CREATE INDEX IF NOT EXISTS idx_files_created_by ON files(created_by);
+CREATE INDEX IF NOT EXISTS idx_files_active ON files(is_active);
+
 CREATE TABLE IF NOT EXISTS inventory (
   id TEXT PRIMARY KEY,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -289,6 +305,12 @@ CREATE TABLE IF NOT EXISTS orders (
   charges_metadata TEXT NULL,
   delivered_at TEXT NULL,
   stock_deducted_at TEXT NULL,
+  invoice_file_id TEXT NULL,
+  invoice_number TEXT NULL,
+  invoice_generated_at TEXT NULL,
+  invoice_status TEXT NULL,
+  invoice_error TEXT NULL,
+  invoice_attempts INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -299,6 +321,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at
 CREATE INDEX IF NOT EXISTS idx_orders_gateway ON orders(gateway_order_id);
 CREATE INDEX IF NOT EXISTS idx_orders_coupon_created ON orders(coupon_code, created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_kind_date ON orders(order_kind, delivery_date);
+CREATE INDEX IF NOT EXISTS idx_orders_invoice_file ON orders(invoice_file_id);
+CREATE INDEX IF NOT EXISTS idx_orders_invoice_status ON orders(invoice_status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_orders_invoice_number ON orders(invoice_number);
 
 CREATE TABLE IF NOT EXISTS order_items (
   id TEXT PRIMARY KEY,

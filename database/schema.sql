@@ -468,6 +468,12 @@ CREATE TABLE IF NOT EXISTS orders (
     charges_metadata JSON NULL,
     delivered_at DATETIME NULL,
     stock_deducted_at DATETIME NULL,
+    invoice_file_id CHAR(36) NULL,
+    invoice_number VARCHAR(64) NULL,
+    invoice_generated_at DATETIME NULL,
+    invoice_status VARCHAR(32) NULL,
+    invoice_error TEXT NULL,
+    invoice_attempts INT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -477,10 +483,14 @@ CREATE TABLE IF NOT EXISTS orders (
     KEY idx_orders_warehouse (warehouse_id),
     KEY idx_orders_coupon_created (coupon_code, created_at),
     KEY idx_orders_kind_date (order_kind, delivery_date),
+    KEY idx_orders_invoice_file (invoice_file_id),
+    KEY idx_orders_invoice_status (invoice_status),
+    UNIQUE KEY uq_orders_invoice_number (invoice_number),
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_orders_cart FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE SET NULL,
     CONSTRAINT fk_orders_address FOREIGN KEY (address_id) REFERENCES addresses (id) ON DELETE SET NULL,
-    CONSTRAINT fk_orders_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE SET NULL
+    CONSTRAINT fk_orders_warehouse FOREIGN KEY (warehouse_id) REFERENCES warehouses (id) ON DELETE SET NULL,
+    CONSTRAINT fk_orders_invoice_file FOREIGN KEY (invoice_file_id) REFERENCES files (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS wallet_transactions (
