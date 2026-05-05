@@ -23,23 +23,38 @@ final class PushNotificationService
      */
     public static function sendToUser(string $userId, string $title, string $body, array $data = [], ?string $subtitle = null): void
     {
+        self::sendToUserDevices($userId, $title, $body, $data, $subtitle, false);
+    }
+
+    /**
+     * Sends a silent data notification to all devices registered for a user.
+     */
+    public static function sendSilentToUser(string $userId, array $data = []): void
+    {
+        self::sendToUserDevices($userId, '', '', $data, null, true);
+    }
+
+    private static function sendToUserDevices(string $userId, string $title, string $body, array $data = [], ?string $subtitle = null, bool $silent = false): void
+    {
         // 1. Log to database for historical reference in Admin portal
-        try {
-            $id = \App\Core\Uuid::v4();
-            $stmtLog = Database::connection()->prepare(
-                'INSERT INTO sent_notifications (id, user_id, title, subtitle, body, data, created_at) 
-                 VALUES (:id, :uid, :title, :subtitle, :body, :data, CURRENT_TIMESTAMP)'
-            );
-            $stmtLog->execute([
-                'id' => $id,
-                'uid' => $userId,
-                'title' => $title,
-                'subtitle' => $subtitle,
-                'body' => $body,
-                'data' => json_encode($data),
-            ]);
-        } catch (\Exception $e) {
-            // Silently fail logging if DB error
+        if (!$silent) {
+            try {
+                $id = \App\Core\Uuid::v4();
+                $stmtLog = Database::connection()->prepare(
+                    'INSERT INTO sent_notifications (id, user_id, title, subtitle, body, data, created_at) 
+                     VALUES (:id, :uid, :title, :subtitle, :body, :data, CURRENT_TIMESTAMP)'
+                );
+                $stmtLog->execute([
+                    'id' => $id,
+                    'uid' => $userId,
+                    'title' => $title,
+                    'subtitle' => $subtitle,
+                    'body' => $body,
+                    'data' => json_encode($data),
+                ]);
+            } catch (\Exception $e) {
+                // Silently fail logging if DB error
+            }
         }
 
         // 2. Fetch devices
@@ -60,9 +75,9 @@ final class PushNotificationService
             if ($token === '') continue;
 
             if ($provider === 'expo' || str_starts_with($token, 'ExponentPushToken')) {
-                self::sendToExpo($token, $title, $body, $data, $subtitle);
+                self::sendToExpo($token, $title, $body, $data, $subtitle, $silent);
             } elseif ($provider === 'fcm' || $provider === 'android' || $provider === 'gcm' || $provider === 'device') {
-                self::sendToFcmV1($token, $title, $body, $data, $subtitle);
+                self::sendToFcmV1($token, $title, $body, $data, $subtitle, $silent);
             }
         }
     }
@@ -77,9 +92,12 @@ final class PushNotificationService
         $body = "Your order #{$orderCode} has been delivered. Enjoy your morning!";
         $url = 'suprmorning://order_details?orderId=' . rawurlencode($orderId);
         $data = [
+            'event' => 'order_status_changed',
+            'silent' => false,
             'url' => $url,
             'screen' => 'OrderDetails',
             'orderId' => $orderId,
+            'orderStatus' => 'delivered',
             'params' => [
                 'orderId' => $orderId
             ]
@@ -88,16 +106,36 @@ final class PushNotificationService
         self::sendToUser($userId, $title, $body, $data, $subtitle);
     }
 
-    private static function sendToExpo(string $token, string $title, string $body, array $data, ?string $subtitle = null): void
+    /**
+     * Specialized helper for silent order status refresh notifications.
+     */
+    public static function notifyOrderStatusChanged(string $userId, string $orderId, string $orderStatus, ?string $previousStatus = null): void
+    {
+        self::sendSilentToUser($userId, [
+            'event' => 'order_status_changed',
+            'silent' => true,
+            'orderId' => $orderId,
+            'orderStatus' => $orderStatus,
+            'previousOrderStatus' => $previousStatus,
+        ]);
+    }
+
+    private static function sendToExpo(string $token, string $title, string $body, array $data, ?string $subtitle = null, bool $silent = false): void
     {
         $payload = [
             'to' => $token,
-            'title' => $title,
-            'body' => $body,
             'data' => (object)$data,
-            'sound' => 'default',
             'priority' => 'high',
         ];
+
+        if ($silent) {
+            $payload['contentAvailable'] = true;
+            $payload['sound'] = null;
+        } else {
+            $payload['title'] = $title;
+            $payload['body'] = $body;
+            $payload['sound'] = 'default';
+        }
 
         if ($subtitle !== null && $subtitle !== '') {
             $payload['subtitle'] = $subtitle;
@@ -110,7 +148,7 @@ final class PushNotificationService
     /**
      * Sends notification via FCM HTTP v1 API (Modern).
      */
-    private static function sendToFcmV1(string $token, string $title, string $body, array $data, ?string $subtitle = null): void
+    private static function sendToFcmV1(string $token, string $title, string $body, array $data, ?string $subtitle = null, bool $silent = false): void
     {
         $saPath = Env::get('FIREBASE_SERVICE_ACCOUNT_JSON', '');
         if ($saPath === '') return;
@@ -131,21 +169,30 @@ final class PushNotificationService
         $projectId = $sa['project_id'];
         $url = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
 
-        $notification = [
-            'title' => $title,
-            'body' => $body,
-        ];
-
         $message = [
             'token' => $token,
-            'notification' => $notification,
             'android' => [
                 'priority' => 'high',
-                'notification' => [
-                    'channel_id' => 'default',
-                ],
             ],
         ];
+
+        if (!$silent) {
+            $message['notification'] = [
+                'title' => $title,
+                'body' => $body,
+            ];
+            $message['android']['notification'] = [
+                'channel_id' => 'default',
+            ];
+        } else {
+            $message['apns'] = [
+                'payload' => [
+                    'aps' => [
+                        'content-available' => 1,
+                    ],
+                ],
+            ];
+        }
 
         $flattened = self::flattenData($data);
         if (!empty($flattened)) {

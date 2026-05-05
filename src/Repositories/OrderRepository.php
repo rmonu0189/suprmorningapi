@@ -690,6 +690,7 @@ final class OrderRepository
     ): void {
         $pdo = Database::connection();
         $notifyDelivered = null;
+        $notifyStatusChanged = null;
         $generateInvoiceOrderId = null;
         $pdo->beginTransaction();
         try {
@@ -748,6 +749,13 @@ final class OrderRepository
                             'order_code' => $orderCode !== '' ? $orderCode : substr($orderId, 0, 8),
                             'order_id' => $orderId,
                         ];
+                    } elseif ($userId !== null) {
+                        $notifyStatusChanged = [
+                            'user_id' => $userId,
+                            'order_id' => $orderId,
+                            'order_status' => $newStatus,
+                            'previous_order_status' => $prevStatus,
+                        ];
                     }
                 }
 
@@ -768,6 +776,17 @@ final class OrderRepository
                     (string) $notifyDelivered['user_id'],
                     (string) $notifyDelivered['order_code'],
                     (string) $notifyDelivered['order_id']
+                );
+            }
+
+            if (is_array($notifyStatusChanged)) {
+                \App\Services\PushNotificationService::notifyOrderStatusChanged(
+                    (string) $notifyStatusChanged['user_id'],
+                    (string) $notifyStatusChanged['order_id'],
+                    (string) $notifyStatusChanged['order_status'],
+                    isset($notifyStatusChanged['previous_order_status'])
+                        ? (string) $notifyStatusChanged['previous_order_status']
+                        : null
                 );
             }
         } catch (\Throwable $e) {
