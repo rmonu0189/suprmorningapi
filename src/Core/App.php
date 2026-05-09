@@ -321,6 +321,9 @@ final class App
         $router->add('POST', self::API_PREFIX . '/auth/delete-account', static function (Request $r) use ($auth): void {
             $auth->deleteAccount($r);
         });
+        $router->add('POST', self::API_PREFIX . '/auth/avatar/upload', static function (Request $r) use ($auth): void {
+            $auth->uploadAvatar($r);
+        });
         $router->add('POST', self::API_PREFIX . '/notifications/devices', static function (Request $r) use ($notifications): void {
             $notifications->registerDevice($r);
         });

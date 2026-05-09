@@ -44,12 +44,12 @@ final class UserRepository
         return (int) $v;
     }
 
-    /** @return array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
+    /** @return array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, avatar_url: ?string, created_at: string}|null */
     public static function findById(string $id): ?array
     {
         $referralSelect = ReferralRepository::usersTableHasReferralCodeColumn() ? ', referral_code' : '';
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, country_code, email, full_name' . $referralSelect . ', is_active, role, warehouse_id, created_at FROM users WHERE id = :id LIMIT 1'
+            'SELECT id, phone, country_code, email, full_name' . $referralSelect . ', is_active, role, warehouse_id, created_at, avatar_url FROM users WHERE id = :id LIMIT 1'
         );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -71,6 +71,7 @@ final class UserRepository
             'is_active' => (bool) (int) $row['is_active'],
             'role' => $role !== null && $role !== '' ? (string) $role : self::DEFAULT_ROLE,
             'warehouse_id' => isset($row['warehouse_id']) && $row['warehouse_id'] !== null ? (int) $row['warehouse_id'] : null,
+            'avatar_url' => isset($row['avatar_url']) && $row['avatar_url'] !== null && $row['avatar_url'] !== '' ? (string) $row['avatar_url'] : null,
             'created_at' => (string) $row['created_at'],
         ];
     }
@@ -95,14 +96,14 @@ final class UserRepository
         ];
     }
 
-    /** @return array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}|null */
+    /** @return array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, avatar_url: ?string, created_at: string}|null */
     public static function findByPhoneExact(string $phone, string $countryCode = self::DEFAULT_COUNTRY_CODE): ?array
     {
         $p = trim($phone);
         if ($p === '') return null;
         $referralSelect = ReferralRepository::usersTableHasReferralCodeColumn() ? ', referral_code' : '';
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, country_code, email, full_name' . $referralSelect . ', is_active, role, warehouse_id, created_at
+            'SELECT id, phone, country_code, email, full_name' . $referralSelect . ', is_active, role, warehouse_id, created_at, avatar_url
              FROM users WHERE phone = :phone AND country_code = :country_code LIMIT 1'
         );
         $stmt->execute(['phone' => $p, 'country_code' => $countryCode]);
@@ -159,6 +160,17 @@ final class UserRepository
         $stmt->execute([
             'id' => $id,
             'full_name' => $fullName,
+        ]);
+    }
+
+    public static function updateAvatarUrl(string $id, ?string $avatarUrl): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE users SET avatar_url = :avatar_url WHERE id = :id'
+        );
+        $stmt->execute([
+            'id' => $id,
+            'avatar_url' => $avatarUrl,
         ]);
     }
 
@@ -225,7 +237,7 @@ final class UserRepository
 
     /**
      * @param array<string, mixed> $row
-     * @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}
+     * @return array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, avatar_url: ?string, created_at: string}
      */
     private static function formatUserRow(array $row): array
     {
@@ -239,6 +251,7 @@ final class UserRepository
             'is_active' => (bool) (int) $row['is_active'],
             'role' => (string) ($row['role'] ?? self::DEFAULT_ROLE),
             'warehouse_id' => isset($row['warehouse_id']) && $row['warehouse_id'] !== null ? (int) $row['warehouse_id'] : null,
+            'avatar_url' => isset($row['avatar_url']) && $row['avatar_url'] !== null && $row['avatar_url'] !== '' ? (string) $row['avatar_url'] : null,
             'created_at' => (string) $row['created_at'],
         ];
     }
@@ -256,14 +269,14 @@ final class UserRepository
     /**
      * Admin: list users excluding a role (defaults to excluding regular "user"), paginated.
      *
-     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
+     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, avatar_url: ?string, created_at: string}>
      */
     public static function listByRoleExcludingPaged(string $excludeRole, int $offset, int $limit): array
     {
         $limit = max(1, min(100, $limit));
         $offset = max(0, $offset);
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
+            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at, avatar_url
              FROM users
              WHERE role <> :exclude
              ORDER BY created_at DESC
@@ -313,7 +326,7 @@ final class UserRepository
     /**
      * Search all users (any role) by phone, email, name, or id substring.
      *
-     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
+     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, avatar_url: ?string, created_at: string}>
      */
     public static function searchAllPaged(string $q, int $offset, int $limit): array
     {
@@ -325,7 +338,7 @@ final class UserRepository
         $offset = max(0, $offset);
         $like = self::sqlLikeContains($q);
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
+            'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at, avatar_url
              FROM users
              WHERE phone LIKE :like
                 OR (email IS NOT NULL AND email LIKE :like2)
@@ -359,7 +372,7 @@ final class UserRepository
     /**
      * Admin: search users by phone (partial match) and optionally exclude a role.
      *
-     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
+     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, avatar_url: ?string, created_at: string}>
      */
     public static function searchByPhone(string $phoneLike, ?string $excludeRole = null, int $limit = 50): array
     {
@@ -368,7 +381,7 @@ final class UserRepository
 
         if ($excludeRole !== null && $excludeRole !== '') {
             $stmt = Database::connection()->prepare(
-                'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
+                'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at, avatar_url
                  FROM users
                  WHERE phone LIKE :like AND role <> :exclude
                  ORDER BY created_at DESC
@@ -377,7 +390,7 @@ final class UserRepository
             $stmt->execute(['like' => $like, 'exclude' => $excludeRole]);
         } else {
             $stmt = Database::connection()->prepare(
-                'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at
+                'SELECT id, phone, email, full_name, is_active, role, warehouse_id, created_at, avatar_url
                  FROM users
                  WHERE phone LIKE :like
                  ORDER BY created_at DESC
@@ -404,7 +417,7 @@ final class UserRepository
     /**
      * Admin: list users excluding a role (defaults to excluding regular "user").
      *
-     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, created_at: string}>
+     * @return list<array{id: string, phone: string, email: ?string, full_name: ?string, is_active: bool, role: string, avatar_url: ?string, created_at: string}>
      */
     public static function listByRoleExcluding(string $excludeRole = self::DEFAULT_ROLE, int $limit = 200): array
     {
@@ -442,14 +455,14 @@ final class UserRepository
     }
 
     /**
-     * @return list<array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, created_at: string}>
+     * @return list<array{id: string, phone: string, country_code: string, email: ?string, full_name: ?string, is_active: bool, role: string, warehouse_id: ?int, avatar_url: ?string, created_at: string}>
      */
     public static function listByRoleExcludingWarehousePaged(string $excludeRole, int $warehouseId, int $offset, int $limit): array
     {
         $limit = max(1, min(100, $limit));
         $offset = max(0, $offset);
         $stmt = Database::connection()->prepare(
-            'SELECT id, phone, country_code, email, full_name, is_active, role, warehouse_id, created_at
+            'SELECT id, phone, country_code, email, full_name, is_active, role, warehouse_id, created_at, avatar_url
              FROM users
              WHERE role <> :exclude AND warehouse_id = :wid
              ORDER BY created_at DESC
