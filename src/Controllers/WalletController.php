@@ -13,7 +13,9 @@ use App\Core\Validator;
 use App\Core\Database;
 use App\Middleware\AuthMiddleware;
 use App\Repositories\WalletRepository;
+use App\Repositories\WalletHoldRepository;
 use App\Repositories\WalletTopupRepository;
+use App\Services\CommerceGatewayPaymentService;
 use App\Services\RazorpayService;
 
 final class WalletController
@@ -31,11 +33,26 @@ final class WalletController
             return;
         }
 
+        CommerceGatewayPaymentService::expireStaleWalletHolds($userId);
+
         $wallet = WalletRepository::findByUserId($userId);
+        $activeHolds = array_map(static function (array $hold): array {
+            return [
+                'id' => (string) ($hold['id'] ?? ''),
+                'order_id' => (string) ($hold['order_id'] ?? ''),
+                'amount' => (float) ($hold['amount'] ?? 0),
+                'status' => (string) ($hold['status'] ?? ''),
+                'created_at' => (string) ($hold['created_at'] ?? ''),
+                'release_at' => CommerceGatewayPaymentService::holdExpiresAt($hold),
+            ];
+        }, WalletHoldRepository::findActiveByUserId($userId));
         $transactions = WalletRepository::findRecentTransactionsByUserId($userId, 5);
         $totalTransactions = WalletRepository::countTransactionsByUserId($userId);
         Response::json([
-            'wallet' => $wallet,
+            'wallet' => array_merge($wallet, [
+                'locked_holds' => $activeHolds,
+                'locked_release_at' => $activeHolds[0]['release_at'] ?? null,
+            ]),
             'transactions' => $transactions,
             'total_transactions' => $totalTransactions,
         ]);
@@ -56,6 +73,8 @@ final class WalletController
 
         $limitRaw = $request->query('limit');
         $offsetRaw = $request->query('offset');
+        $typeRaw = strtolower(trim((string) ($request->query('type') ?? 'all')));
+        $type = in_array($typeRaw, ['all', 'credit', 'debit', 'holds'], true) ? $typeRaw : 'all';
         $limit = is_string($limitRaw) ? (int) $limitRaw : 20;
         $offset = is_string($offsetRaw) ? (int) $offsetRaw : 0;
         if ($limit < 1) {
@@ -68,14 +87,86 @@ final class WalletController
             $offset = 0;
         }
 
-        $total = WalletRepository::countTransactionsByUserId($userId);
-        $transactions = WalletRepository::findTransactionsByUserId($userId, $limit, $offset);
+        CommerceGatewayPaymentService::expireStaleWalletHolds($userId);
+
+        if ($type === 'holds') {
+            $total = WalletRepository::countHoldTransactionsByUserId($userId);
+            $transactions = array_map([self::class, 'formatHoldTransactionActivity'], WalletRepository::findHoldTransactionsByUserId($userId, $limit, $offset));
+        } elseif ($type === 'credit' || $type === 'debit') {
+            $total = WalletRepository::countTransactionsByUserId($userId, $type);
+            $transactions = WalletRepository::findTransactionsByUserId($userId, $limit, $offset, $type);
+        } else {
+            $walletTransactions = WalletRepository::findTransactionsByUserId($userId, 1000, 0);
+            $holdTransactions = array_map([self::class, 'formatHoldTransactionActivity'], WalletRepository::findHoldTransactionsByUserId($userId, 1000, 0));
+            $all = array_merge($walletTransactions, $holdTransactions);
+            usort($all, static function (array $a, array $b): int {
+                $cmp = strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? ''));
+                if ($cmp !== 0) {
+                    return $cmp;
+                }
+
+                return strcmp((string) ($b['id'] ?? ''), (string) ($a['id'] ?? ''));
+            });
+            $total = WalletRepository::countTransactionsByUserId($userId) + WalletRepository::countHoldTransactionsByUserId($userId);
+            $transactions = array_slice($all, $offset, $limit);
+        }
         Response::json([
             'transactions' => $transactions,
             'total' => $total,
             'limit' => $limit,
             'offset' => $offset,
+            'type' => $type,
         ]);
+    }
+
+    /** @param array<string, mixed> $tx */
+    private static function formatHoldTransactionActivity(array $tx): array
+    {
+        $source = strtolower((string) ($tx['source'] ?? ''));
+        $note = (string) ($tx['note'] ?? '');
+        $status = 'active';
+        if ($source === 'order_hold_release') {
+            $status = stripos($note, 'timeout') !== false || stripos($note, 'expired') !== false ? 'expired' : 'released';
+        }
+
+        return [
+            'id' => (string) ($tx['id'] ?? ''),
+            'user_id' => (string) ($tx['user_id'] ?? ''),
+            'order_id' => $tx['order_id'] !== null && $tx['order_id'] !== '' ? (string) $tx['order_id'] : null,
+            'type' => 'hold',
+            'source' => $source,
+            'amount' => (float) ($tx['amount'] ?? 0),
+            'status' => $status,
+            'reference_id' => $tx['reference_id'] !== null && $tx['reference_id'] !== '' ? (string) $tx['reference_id'] : null,
+            'note' => $note !== '' ? $note : ($status === 'active' ? 'Wallet amount locked for online payment' : 'Wallet hold released'),
+            'created_at' => (string) ($tx['created_at'] ?? ''),
+        ];
+    }
+
+    /** @param array<string, mixed> $hold */
+    private static function formatHoldActivity(array $hold): array
+    {
+        $status = strtolower((string) ($hold['status'] ?? 'active'));
+        $note = match ($status) {
+            'active' => 'Wallet amount reserved for online payment',
+            'captured' => 'Wallet hold captured after payment success',
+            'released' => 'Wallet hold released after payment failure',
+            'expired' => 'Wallet hold released after payment timeout',
+            default => 'Wallet hold status updated',
+        };
+
+        return [
+            'id' => (string) ($hold['id'] ?? ''),
+            'user_id' => (string) ($hold['user_id'] ?? ''),
+            'order_id' => (string) ($hold['order_id'] ?? ''),
+            'type' => 'hold',
+            'source' => 'wallet_hold',
+            'amount' => (float) ($hold['amount'] ?? 0),
+            'status' => $status,
+            'reference_id' => (string) ($hold['order_id'] ?? ''),
+            'note' => $note,
+            'created_at' => (string) ($hold['created_at'] ?? ''),
+        ];
     }
 
     /** POST /v1/wallet/add-funds/create-order */

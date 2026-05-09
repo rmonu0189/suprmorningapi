@@ -240,12 +240,18 @@ final class WalletRepository
         return true;
     }
 
-    public static function countTransactionsByUserId(string $userId): int
+    public static function countTransactionsByUserId(string $userId, ?string $type = null): int
     {
+        $where = " AND source NOT IN ('order_hold_lock', 'order_hold_release')";
+        $params = ['uid' => $userId];
+        if ($type === 'credit' || $type === 'debit') {
+            $where .= ' AND type = :type';
+            $params['type'] = $type;
+        }
         $stmt = Database::connection()->prepare(
-            'SELECT COUNT(*) AS c FROM wallet_transactions WHERE user_id = :uid'
+            'SELECT COUNT(*) AS c FROM wallet_transactions WHERE user_id = :uid' . $where
         );
-        $stmt->execute(['uid' => $userId]);
+        $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
             return 0;
@@ -257,18 +263,26 @@ final class WalletRepository
     /**
      * @return list<array<string, mixed>>
      */
-    public static function findTransactionsByUserId(string $userId, int $limit, int $offset = 0): array
+    public static function findTransactionsByUserId(string $userId, int $limit, int $offset = 0, ?string $type = null): array
     {
         $limit = max(1, min(100, $limit));
         $offset = max(0, $offset);
+        $where = " AND source NOT IN ('order_hold_lock', 'order_hold_release')";
+        $params = ['uid' => $userId];
+        if ($type === 'credit' || $type === 'debit') {
+            $where .= ' AND type = :type';
+            $params['type'] = $type;
+        }
         $stmt = Database::connection()->prepare(
             'SELECT id, user_id, order_id, type, source, amount, status, reference_id, note, created_at
              FROM wallet_transactions
-             WHERE user_id = :uid
+             WHERE user_id = :uid' . $where . '
              ORDER BY created_at DESC, id DESC
              LIMIT :lim OFFSET :off'
         );
-        $stmt->bindValue('uid', $userId);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
         $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue('off', $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -303,6 +317,45 @@ final class WalletRepository
     public static function findRecentTransactionsByUserId(string $userId, int $limit = 20): array
     {
         return self::findTransactionsByUserId($userId, $limit, 0);
+    }
+
+    public static function countHoldTransactionsByUserId(string $userId): int
+    {
+        $stmt = Database::connection()->prepare(
+            "SELECT COUNT(*) AS c FROM wallet_transactions
+             WHERE user_id = :uid AND source IN ('order_hold_lock', 'order_hold_release')"
+        );
+        $stmt->execute(['uid' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            return 0;
+        }
+
+        return (int) ($row['c'] ?? 0);
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function findHoldTransactionsByUserId(string $userId, int $limit, int $offset = 0): array
+    {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+        $stmt = Database::connection()->prepare(
+            "SELECT id, user_id, order_id, type, source, amount, status, reference_id, note, created_at
+             FROM wallet_transactions
+             WHERE user_id = :uid AND source IN ('order_hold_lock', 'order_hold_release')
+             ORDER BY created_at DESC, id DESC
+             LIMIT :lim OFFSET :off"
+        );
+        $stmt->bindValue('uid', $userId);
+        $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_values(array_filter($rows, 'is_array'));
     }
 
     /**

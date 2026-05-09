@@ -87,6 +87,41 @@ final class PaymentRepository
     }
 
     /**
+     * Intended payment amounts per gateway for an order, regardless of final status.
+     *
+     * @return array{wallet: float, razorpay: float}
+     */
+    public static function sumByGatewayForOrder(string $orderId): array
+    {
+        $stmt = Database::connection()->prepare(
+            "SELECT gateway, COALESCE(SUM(amount), 0) AS s
+             FROM payments
+             WHERE order_id = :oid
+             GROUP BY gateway"
+        );
+        $stmt->execute(['oid' => $orderId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $wallet = 0.0;
+        $razorpay = 0.0;
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $gw = strtolower(trim((string) ($row['gateway'] ?? '')));
+                $s = (float) ($row['s'] ?? 0);
+                if ($gw === 'wallet') {
+                    $wallet += $s;
+                } elseif ($gw === 'razorpay') {
+                    $razorpay += $s;
+                }
+            }
+        }
+
+        return ['wallet' => $wallet, 'razorpay' => $razorpay];
+    }
+
+    /**
      * Latest successful gateway_order_id per gateway (wallet vs razorpay) for receipt / support IDs.
      *
      * @return array{wallet: ?string, razorpay: ?string}

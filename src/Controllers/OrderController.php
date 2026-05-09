@@ -130,8 +130,12 @@ final class OrderController
         $userId = (string) ($claims['sub'] ?? '');
         $page = max(0, (int) ($request->query('page') ?? '0'));
         $limit = min(50, max(1, (int) ($request->query('limit') ?? '10')));
+        $paymentFilter = strtolower(trim((string) ($request->query('payment_filter') ?? 'success')));
+        if (!in_array($paymentFilter, ['all', 'success', 'pending', 'failed'], true)) {
+            $paymentFilter = 'success';
+        }
         $offset = $page * $limit;
-        $orders = OrderRepository::findForUserExcludingPayment($userId, $offset, $limit);
+        $orders = OrderRepository::findForUser($userId, $offset, $limit, $paymentFilter);
         Response::json(['orders' => $orders]);
     }
 
@@ -204,6 +208,7 @@ final class OrderController
             Response::json(['error' => 'gateway_order_id required'], 422);
             return;
         }
+        CommerceGatewayPaymentService::expireStaleWalletHolds($userId);
         $status = OrderRepository::findPaymentStatusByGatewayOrderIdForUser($go, $userId);
         if ($status === 'pending' && OrderRepository::findRawByGatewayOrderId($go) === null) {
             // Technically findPaymentStatusByGatewayOrderIdForUser returns 'pending' if not found.

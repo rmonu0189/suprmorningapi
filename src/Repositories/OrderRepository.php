@@ -389,13 +389,38 @@ final class OrderRepository
         return is_array($row) ? $row : null;
     }
 
+    /** @return array<string, mixed>|null */
+    public static function findRawByOrderId(string $orderId): ?array
+    {
+        $stmt = Database::connection()->prepare(
+            'SELECT id, user_id, payment_status, grand_total, gateway_order_id
+             FROM orders
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $stmt->execute(['id' => $orderId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
-    public static function findForUserExcludingPayment(string $userId, int $offset, int $limit): array
+    public static function findForUser(string $userId, int $offset, int $limit, string $paymentFilter = 'success'): array
     {
+        $where = ['o.user_id = :uid'];
+        if ($paymentFilter === 'success') {
+            $where[] = 'LOWER(COALESCE(o.payment_status, \'\')) IN (\'success\', \'completed\')';
+        } elseif ($paymentFilter === 'pending') {
+            $where[] = 'LOWER(COALESCE(o.payment_status, \'\')) = \'pending\'';
+        } elseif ($paymentFilter === 'failed') {
+            $where[] = 'LOWER(COALESCE(o.payment_status, \'\')) NOT IN (\'success\', \'completed\', \'pending\')';
+        }
+        $whereSql = implode(' AND ', $where);
+
         $stmt = Database::connection()->prepare(
-            'SELECT o.*,
+            "SELECT o.*,
                     EXISTS (
                         SELECT 1
                         FROM order_item_ratings oir
@@ -408,11 +433,10 @@ final class OrderRepository
                         LIMIT 1
                     ) AS rated
              FROM orders o
-             WHERE o.user_id = :uid AND o.payment_status != :pend
-             ORDER BY o.created_at DESC, o.id DESC LIMIT :lim OFFSET :off'
+             WHERE {$whereSql}
+             ORDER BY o.created_at DESC, o.id DESC LIMIT :lim OFFSET :off"
         );
         $stmt->bindValue('uid', $userId, PDO::PARAM_STR);
-        $stmt->bindValue('pend', 'pending', PDO::PARAM_STR);
         $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue('off', $offset, PDO::PARAM_INT);
         $stmt->execute();
@@ -1397,8 +1421,8 @@ final class OrderRepository
     }
 
     /**
-     * Wallet vs Razorpay amounts for receipt-style UI. Mixed checkout may only store a Razorpay row;
-     * wallet portion is inferred from grand_total when gateway_name is mixed.
+     * Wallet vs Razorpay amounts for receipt-style UI. This is the intended split, so pending
+     * and failed gateway attempts still show the wallet/online amounts clearly.
      *
      * @param array<string, mixed> $r
      * @return array{grand_total_inr: float, wallet_inr: float, razorpay_inr: float}
@@ -1407,7 +1431,7 @@ final class OrderRepository
     {
         $grandTotal = round((float) ($r['grand_total'] ?? 0), 2);
         $gwName = strtolower(trim((string) ($r['gateway_name'] ?? '')));
-        $splits = PaymentRepository::sumSuccessfulByGatewayForOrder($orderId);
+        $splits = PaymentRepository::sumByGatewayForOrder($orderId);
         $wallet = round($splits['wallet'], 2);
         $rz = round($splits['razorpay'], 2);
 
@@ -1416,6 +1440,9 @@ final class OrderRepository
         }
         if ($wallet < 0.005 && $gwName === 'mixed' && $rz > 0.005) {
             $wallet = max(0.0, round($grandTotal - $rz, 2));
+        }
+        if ($rz < 0.005 && $gwName === 'razorpay') {
+            $rz = $grandTotal;
         }
 
         return [

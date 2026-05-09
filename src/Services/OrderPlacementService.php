@@ -141,6 +141,8 @@ final class OrderPlacementService
             throw new HttpException('Order total too small for payment', 400);
         }
 
+        CommerceGatewayPaymentService::expireStaleWalletHolds($userId);
+
         $walletRow = WalletRepository::findByUserId($userId);
         $spendable = (float) ($walletRow['balance'] ?? 0.0);
         $totalPaise = max(0, (int) round($grandTotal * 100));
@@ -312,6 +314,17 @@ final class OrderPlacementService
                     throw new HttpException('Insufficient wallet balance', 400);
                 }
                 WalletHoldRepository::insertActive($holdId, $userId, $orderId, $walletApplied);
+                WalletRepository::appendLedgerEntry(
+                    Uuid::v4(),
+                    $userId,
+                    'debit',
+                    'order_hold_lock',
+                    $walletApplied,
+                    'success',
+                    $orderId,
+                    $rzOrderId,
+                    'Wallet amount locked for online payment'
+                );
             }
 
             OrderRepository::updateGatewayOrderId($orderId, $rzOrderId);

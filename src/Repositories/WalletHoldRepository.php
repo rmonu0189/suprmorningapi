@@ -40,15 +40,18 @@ final class WalletHoldRepository
 
     public static function insertActive(string $id, string $userId, string $orderId, float $amount): void
     {
+        $nowUtc = gmdate('Y-m-d H:i:s');
         $stmt = Database::connection()->prepare(
-            'INSERT INTO wallet_holds (id, user_id, order_id, amount, status)
-             VALUES (:id, :uid, :oid, :amt, \'active\')'
+            'INSERT INTO wallet_holds (id, user_id, order_id, amount, status, created_at, updated_at)
+             VALUES (:id, :uid, :oid, :amt, \'active\', :created_at, :updated_at)'
         );
         $stmt->execute([
             'id' => $id,
             'uid' => $userId,
             'oid' => $orderId,
             'amt' => round($amount, 2),
+            'created_at' => $nowUtc,
+            'updated_at' => $nowUtc,
         ]);
     }
 
@@ -64,12 +67,65 @@ final class WalletHoldRepository
         return is_array($row) ? $row : null;
     }
 
+    /** @return list<array<string, mixed>> */
+    public static function findActiveByUserId(string $userId): array
+    {
+        if (!self::isAvailable()) {
+            return [];
+        }
+        $stmt = Database::connection()->prepare(
+            'SELECT id, user_id, order_id, amount, status, created_at, updated_at
+             FROM wallet_holds
+             WHERE user_id = :uid AND status = :st
+             ORDER BY created_at ASC, id ASC'
+        );
+        $stmt->execute(['uid' => $userId, 'st' => 'active']);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return is_array($rows) ? array_values(array_filter($rows, 'is_array')) : [];
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function findExpiredActive(string $cutoffUtc, ?string $userId = null): array
+    {
+        if (!self::isAvailable()) {
+            return [];
+        }
+
+        $params = ['st' => 'active', 'cutoff' => $cutoffUtc];
+        $whereUser = '';
+        if ($userId !== null && $userId !== '') {
+            $whereUser = ' AND user_id = :uid';
+            $params['uid'] = $userId;
+        }
+
+        $stmt = Database::connection()->prepare(
+            'SELECT id, user_id, order_id, amount, status, created_at, updated_at
+             FROM wallet_holds
+             WHERE status = :st AND created_at <= :cutoff' . $whereUser . '
+             ORDER BY created_at ASC, id ASC
+             LIMIT 100'
+        );
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return is_array($rows) ? array_values(array_filter($rows, 'is_array')) : [];
+    }
+
     public static function updateStatus(string $holdId, string $status): void
     {
         $stmt = Database::connection()->prepare(
             'UPDATE wallet_holds SET status = :st WHERE id = :id'
         );
         $stmt->execute(['st' => $status, 'id' => $holdId]);
+    }
+
+    public static function updateStatusIfActive(string $holdId, string $status): bool
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE wallet_holds SET status = :st WHERE id = :id AND status = :active'
+        );
+        $stmt->execute(['st' => $status, 'id' => $holdId, 'active' => 'active']);
+
+        return $stmt->rowCount() > 0;
     }
 
     public static function countActiveByUserId(string $userId): int
@@ -82,5 +138,40 @@ final class WalletHoldRepository
         );
         $stmt->execute(['uid' => $userId, 'st' => 'active']);
         return (int) $stmt->fetchColumn();
+    }
+
+    public static function countByUserId(string $userId): int
+    {
+        if (!self::isAvailable()) {
+            return 0;
+        }
+        $stmt = Database::connection()->prepare(
+            'SELECT COUNT(*) FROM wallet_holds WHERE user_id = :uid'
+        );
+        $stmt->execute(['uid' => $userId]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function findByUserId(string $userId, int $limit, int $offset = 0): array
+    {
+        if (!self::isAvailable()) {
+            return [];
+        }
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+        $stmt = Database::connection()->prepare(
+            'SELECT id, user_id, order_id, amount, status, created_at, updated_at
+             FROM wallet_holds
+             WHERE user_id = :uid
+             ORDER BY created_at DESC, id DESC
+             LIMIT :lim OFFSET :off'
+        );
+        $stmt->bindValue('uid', $userId);
+        $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return is_array($rows) ? array_values(array_filter($rows, 'is_array')) : [];
     }
 }

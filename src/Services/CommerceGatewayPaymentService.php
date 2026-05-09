@@ -17,6 +17,8 @@ use App\Repositories\WalletRepository;
  */
 final class CommerceGatewayPaymentService
 {
+    public const WALLET_HOLD_TIMEOUT_SECONDS = 1800;
+
     public static function onGatewayPaymentSuccess(string $gatewayOrderId): void
     {
         $gatewayOrderId = trim($gatewayOrderId);
@@ -50,11 +52,82 @@ final class CommerceGatewayPaymentService
             }
 
             $hold = WalletHoldRepository::findByOrderId($orderId);
-            if ($hold !== null && (string) ($hold['status'] ?? '') === 'active') {
+            if ($hold !== null && (string) ($hold['status'] ?? '') === 'released' && !self::holdIsExpired($hold)) {
                 $amount = (float) ($hold['amount'] ?? 0);
                 $holdId = (string) ($hold['id'] ?? '');
                 if ($amount > 0.0 && $holdId !== '') {
-                    if (!WalletRepository::finalizeLockedAsSpent($userId, $amount)) {
+                    $txId = Uuid::v4();
+                    if (!WalletRepository::debit(
+                        $txId,
+                        $userId,
+                        $amount,
+                        'order',
+                        $orderId,
+                        $gatewayOrderId,
+                        'Order payment (wallet portion captured after checkout callback race)'
+                    )) {
+                        OrderRepository::updatePaymentStatusByOrderId($orderId, 'failed');
+                        PaymentRepository::updateStatusByGatewayOrderId($gatewayOrderId, 'refund_required');
+                        self::logLine('wallet_recapture_failed_after_release order=' . $orderId . ' gateway=' . $gatewayOrderId . ' refund_required=1');
+                        $pdo->commit();
+
+                        return;
+                    }
+
+                    WalletHoldRepository::updateStatus($holdId, 'captured');
+
+                    if (!PaymentRepository::hasSuccessfulGatewayForOrder($orderId, 'wallet')) {
+                        PaymentRepository::insert(
+                            Uuid::v4(),
+                            $orderId,
+                            $userId,
+                            'wallet',
+                            'wallet_' . $txId,
+                            $amount,
+                            'INR',
+                            'success'
+                        );
+                    }
+                }
+            } elseif ($hold !== null && in_array((string) ($hold['status'] ?? ''), ['released', 'expired'], true)) {
+                OrderRepository::updatePaymentStatusByOrderId($orderId, 'failed');
+                PaymentRepository::updateStatusByGatewayOrderId($gatewayOrderId, 'refund_required');
+                self::logLine('late_gateway_success_after_hold_released order=' . $orderId . ' gateway=' . $gatewayOrderId . ' hold_status=' . (string) ($hold['status'] ?? '') . ' refund_required=1');
+                $pdo->commit();
+
+                return;
+            }
+
+            if ($hold !== null && (string) ($hold['status'] ?? '') === 'active' && self::holdIsExpired($hold)) {
+                if (self::expireActiveHoldInsideTransaction($hold, 'refund_required')) {
+                    OrderRepository::updatePaymentStatusByOrderId($orderId, 'failed');
+                    PaymentRepository::updateStatusByGatewayOrderId($gatewayOrderId, 'refund_required');
+                    self::logLine('late_gateway_success_after_hold_expired order=' . $orderId . ' gateway=' . $gatewayOrderId . ' refund_required=1');
+                }
+                $pdo->commit();
+
+                return;
+            }
+
+            if ($hold !== null && (string) ($hold['status'] ?? '') === 'active') {
+                $holdStatus = (string) ($hold['status'] ?? '');
+                $amount = (float) ($hold['amount'] ?? 0);
+                $holdId = (string) ($hold['id'] ?? '');
+                if ($amount > 0.0 && $holdId !== '') {
+                    $txId = Uuid::v4();
+                    $walletCaptured = $holdStatus === 'active'
+                        ? WalletRepository::finalizeLockedAsSpent($userId, $amount)
+                        : WalletRepository::debit(
+                            $txId,
+                            $userId,
+                            $amount,
+                            'order',
+                            $orderId,
+                            $gatewayOrderId,
+                            'Order payment (wallet portion)'
+                        );
+
+                    if (!$walletCaptured) {
                         $fresh = OrderRepository::findRawByGatewayOrderId($gatewayOrderId);
                         if ($fresh !== null && (string) ($fresh['payment_status'] ?? '') === 'success') {
                             $pdo->commit();
@@ -72,18 +145,19 @@ final class CommerceGatewayPaymentService
 
                     WalletHoldRepository::updateStatus($holdId, 'captured');
 
-                    $txId = Uuid::v4();
-                    WalletRepository::appendLedgerEntry(
-                        $txId,
-                        $userId,
-                        'debit',
-                        'order',
-                        $amount,
-                        'success',
-                        $orderId,
-                        $gatewayOrderId,
-                        'Order payment (wallet portion)'
-                    );
+                    if ($holdStatus === 'active') {
+                        WalletRepository::appendLedgerEntry(
+                            $txId,
+                            $userId,
+                            'debit',
+                            'order',
+                            $amount,
+                            'success',
+                            $orderId,
+                            $gatewayOrderId,
+                            'Order payment (wallet portion)'
+                        );
+                    }
 
                     if (!PaymentRepository::hasSuccessfulGatewayForOrder($orderId, 'wallet')) {
                         $walletGatewayId = 'wallet_' . $txId;
@@ -101,7 +175,7 @@ final class CommerceGatewayPaymentService
                 }
             }
 
-            OrderRepository::updatePaymentStatusByOrderIdIfPending($orderId, 'success');
+            OrderRepository::updatePaymentStatusByOrderId($orderId, 'success');
             PaymentRepository::updateStatusByGatewayOrderId($gatewayOrderId, 'success');
             ReferralService::completeForSuccessfulOrder($userId, $orderId);
 
@@ -145,6 +219,46 @@ final class CommerceGatewayPaymentService
         }
 
         self::onGatewayPaymentFailed($go);
+    }
+
+    public static function expireStaleWalletHolds(?string $userId = null): int
+    {
+        if (!WalletRepository::supportsSplitCheckout()) {
+            return 0;
+        }
+
+        $expired = 0;
+        $cutoffUtc = gmdate('Y-m-d H:i:s', time() - self::WALLET_HOLD_TIMEOUT_SECONDS);
+        $holds = WalletHoldRepository::findExpiredActive($cutoffUtc, $userId);
+        foreach ($holds as $hold) {
+            $pdo = Database::connection();
+            $pdo->beginTransaction();
+            try {
+                if (self::expireActiveHoldInsideTransaction($hold, 'timeout')) {
+                    $orderId = (string) ($hold['order_id'] ?? '');
+                    if ($orderId !== '') {
+                        OrderRepository::updatePaymentStatusByOrderId($orderId, 'failed');
+                        $order = OrderRepository::findRawByOrderId($orderId);
+                        $gatewayOrderId = is_array($order) ? (string) ($order['gateway_order_id'] ?? '') : '';
+                        if ($gatewayOrderId !== '') {
+                            PaymentRepository::updateStatusByGatewayOrderId($gatewayOrderId, 'failed');
+                        }
+                    }
+                    $expired++;
+                }
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                try {
+                    self::logLine('wallet_hold_expire_err hold=' . (string) ($hold['id'] ?? '') . ' ' . $e->getMessage());
+                } catch (\Throwable) {
+                }
+            }
+        }
+
+        return $expired;
     }
 
     public static function onGatewayPaymentFailed(string $gatewayOrderId): void
@@ -238,6 +352,75 @@ final class CommerceGatewayPaymentService
             } catch (\Throwable) {
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $hold
+     */
+    private static function expireActiveHoldInsideTransaction(array $hold, string $reason): bool
+    {
+        $holdId = (string) ($hold['id'] ?? '');
+        $userId = (string) ($hold['user_id'] ?? '');
+        $orderId = (string) ($hold['order_id'] ?? '');
+        $amount = (float) ($hold['amount'] ?? 0);
+        if ($holdId === '' || $userId === '' || $amount <= 0.0) {
+            return false;
+        }
+
+        if (!WalletHoldRepository::updateStatusIfActive($holdId, 'expired')) {
+            return false;
+        }
+
+        if (!WalletRepository::releaseLockedToSpendable($userId, $amount)) {
+            throw new \RuntimeException('Could not release expired wallet hold');
+        }
+
+        $referenceId = $orderId !== '' ? $orderId : $holdId;
+        WalletRepository::appendLedgerEntry(
+            Uuid::v4(),
+            $userId,
+            'credit',
+            'order_hold_release',
+            $amount,
+            'success',
+            $orderId !== '' ? $orderId : null,
+            $referenceId,
+            $reason === 'refund_required'
+                ? 'Wallet hold expired; online payment needs refund review'
+                : 'Wallet hold released after payment timeout'
+        );
+
+        self::logLine('wallet_hold_expired user=' . $userId . ' order=' . $orderId . ' hold=' . $holdId . ' amount=' . number_format($amount, 2, '.', '') . ' reason=' . $reason);
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $hold
+     */
+    public static function holdExpiresAt(array $hold): string
+    {
+        $createdAt = (string) ($hold['created_at'] ?? '');
+        $ts = strtotime($createdAt . ' UTC');
+        if ($ts === false) {
+            $ts = time();
+        }
+
+        return gmdate('Y-m-d H:i:s', $ts + self::WALLET_HOLD_TIMEOUT_SECONDS);
+    }
+
+    /**
+     * @param array<string, mixed> $hold
+     */
+    private static function holdIsExpired(array $hold): bool
+    {
+        $createdAt = (string) ($hold['created_at'] ?? '');
+        $ts = strtotime($createdAt . ' UTC');
+        if ($ts === false) {
+            return false;
+        }
+
+        return (time() - $ts) >= self::WALLET_HOLD_TIMEOUT_SECONDS;
     }
 
     private static function logLine(string $line): void
