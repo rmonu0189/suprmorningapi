@@ -398,6 +398,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   quantity INTEGER NOT NULL DEFAULT 1,
   weekly_schedule TEXT NULL,
   start_date TEXT NOT NULL,
+  pause_start_date TEXT NULL,
+  pause_end_date TEXT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

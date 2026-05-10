@@ -198,6 +198,80 @@ final class SubscriptionController
         Response::json(['subscription' => $updated]);
     }
 
+    /** PATCH /v1/subscriptions/pause */
+    public function pause(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        if ($userId === '' || !Uuid::isValid($userId)) {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        Validator::requireJsonContentType($request);
+        $body = $request->json();
+
+        $id = trim((string) ($body['id'] ?? ''));
+        if ($id === '' || !Uuid::isValid($id)) {
+            throw new ValidationException('Invalid id', ['id' => 'A valid UUID is required.']);
+        }
+        if (SubscriptionRepository::findByIdForUser($id, $userId) === null) {
+            Response::json(['error' => 'Not Found'], 404);
+            return;
+        }
+
+        $pauseStart = trim((string) ($body['pause_start_date'] ?? ''));
+        $pauseEnd = trim((string) ($body['pause_end_date'] ?? ''));
+        $start = \DateTimeImmutable::createFromFormat('Y-m-d', $pauseStart);
+        $end = \DateTimeImmutable::createFromFormat('Y-m-d', $pauseEnd);
+        if ($start === false || $start->format('Y-m-d') !== $pauseStart) {
+            throw new ValidationException('Invalid pause_start_date', ['pause_start_date' => 'Use YYYY-MM-DD.']);
+        }
+        if ($end === false || $end->format('Y-m-d') !== $pauseEnd) {
+            throw new ValidationException('Invalid pause_end_date', ['pause_end_date' => 'Use YYYY-MM-DD.']);
+        }
+        if ($pauseEnd < $pauseStart) {
+            throw new ValidationException('Invalid pause range', ['pause_end_date' => 'End date must be on or after start date.']);
+        }
+
+        SubscriptionRepository::updatePauseByIdForUser($id, $userId, $pauseStart, $pauseEnd);
+        $updated = SubscriptionRepository::findByIdForUser($id, $userId);
+        Response::json(['subscription' => $updated]);
+    }
+
+    /** PATCH /v1/subscriptions/resume */
+    public function resume(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        if ($userId === '' || !Uuid::isValid($userId)) {
+            Response::json(['error' => 'Unauthorized'], 401);
+            return;
+        }
+
+        Validator::requireJsonContentType($request);
+        $body = $request->json();
+
+        $id = trim((string) ($body['id'] ?? ''));
+        if ($id === '' || !Uuid::isValid($id)) {
+            throw new ValidationException('Invalid id', ['id' => 'A valid UUID is required.']);
+        }
+        if (SubscriptionRepository::findByIdForUser($id, $userId) === null) {
+            Response::json(['error' => 'Not Found'], 404);
+            return;
+        }
+
+        SubscriptionRepository::updatePauseByIdForUser($id, $userId, null, null);
+        $updated = SubscriptionRepository::findByIdForUser($id, $userId);
+        Response::json(['subscription' => $updated]);
+    }
+
     /** DELETE /v1/subscriptions?id=... */
     public function cancel(Request $request): void
     {

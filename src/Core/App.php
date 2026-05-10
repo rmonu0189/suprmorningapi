@@ -456,6 +456,12 @@ final class App
         $router->add('PUT', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
             $subscriptions->update($r);
         });
+        $router->add('PATCH', self::API_PREFIX . '/subscriptions/pause', static function (Request $r) use ($subscriptions): void {
+            $subscriptions->pause($r);
+        });
+        $router->add('PATCH', self::API_PREFIX . '/subscriptions/resume', static function (Request $r) use ($subscriptions): void {
+            $subscriptions->resume($r);
+        });
         $router->add('DELETE', self::API_PREFIX . '/subscriptions', static function (Request $r) use ($subscriptions): void {
             $subscriptions->cancel($r);
         });

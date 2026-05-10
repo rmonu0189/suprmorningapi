@@ -259,6 +259,8 @@ final class Database
         self::ensureSqliteColumn($pdo, 'orders', 'order_kind', 'TEXT', "'user'");
         self::ensureSqliteColumn($pdo, 'orders', 'coupon_code', 'TEXT', 'NULL');
         self::ensureSqliteColumn($pdo, 'orders', 'coupon_discount', 'REAL', '0');
+        self::ensureSqliteColumn($pdo, 'subscriptions', 'pause_start_date', 'TEXT', 'NULL');
+        self::ensureSqliteColumn($pdo, 'subscriptions', 'pause_end_date', 'TEXT', 'NULL');
 
         self::ensureSqliteColumn($pdo, 'products', 'brand_id', 'TEXT', "''");
         self::ensureSqliteColumn($pdo, 'products', 'category_id', 'TEXT', 'NULL');

@@ -391,6 +391,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     quantity INT NOT NULL DEFAULT 1,
     weekly_schedule JSON NULL,
     start_date DATE NOT NULL,
+    pause_start_date DATE NULL,
+    pause_end_date DATE NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),

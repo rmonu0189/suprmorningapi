@@ -160,6 +160,13 @@ final class SubscriptionOrderGenerator
                 continue; // not started yet
             }
 
+            $deliveryYmd = $deliveryDate->format('Y-m-d');
+            $pauseStart = (string) ($s['pause_start_date'] ?? '');
+            $pauseEnd = (string) ($s['pause_end_date'] ?? '');
+            if ($pauseStart !== '' && $pauseEnd !== '' && $pauseStart <= $deliveryYmd && $pauseEnd >= $deliveryYmd) {
+                continue;
+            }
+
             $freq = strtolower(trim((string) ($s['frequency'] ?? '')));
             $qty = 0;
             if ($freq === 'daily') {
