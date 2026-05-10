@@ -170,8 +170,8 @@ final class AuthController
             return;
         }
 
-        if (!array_key_exists('full_name', $body) && !array_key_exists('avatar_url', $body)) {
-            Response::json(['error' => 'Nothing to update', 'errors' => ['fields' => 'Provide full_name or avatar_url.']], 422);
+        if (!array_key_exists('full_name', $body) && !array_key_exists('avatar_url', $body) && !array_key_exists('email', $body)) {
+            Response::json(['error' => 'Nothing to update', 'errors' => ['fields' => 'Provide full_name, email, or avatar_url.']], 422);
             return;
         }
 
@@ -187,6 +187,28 @@ final class AuthController
                 $fullName = $s === '' ? null : $s;
             }
             UserRepository::updateFullName($sub, $fullName);
+        }
+
+        if (array_key_exists('email', $body)) {
+            $rawEmail = $body['email'];
+            $email = null;
+            if ($rawEmail !== null && $rawEmail !== '') {
+                $s = strtolower(trim((string) $rawEmail));
+                if ($s !== '' && !filter_var($s, FILTER_VALIDATE_EMAIL)) {
+                    Response::json(['error' => 'Invalid email', 'errors' => ['email' => 'Must be a valid email address.']], 422);
+                    return;
+                }
+                if (strlen($s) > 255) {
+                    Response::json(['error' => 'Invalid email', 'errors' => ['email' => 'At most 255 characters.']], 422);
+                    return;
+                }
+                if ($s !== '' && UserRepository::emailTakenByOtherUser($s, $sub)) {
+                    Response::json(['error' => 'Email already in use', 'errors' => ['email' => 'This email address is already linked to another account.']], 409);
+                    return;
+                }
+                $email = $s === '' ? null : $s;
+            }
+            UserRepository::updateEmail($sub, $email);
         }
 
         if (array_key_exists('avatar_url', $body)) {

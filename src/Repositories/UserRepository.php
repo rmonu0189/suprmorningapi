@@ -128,6 +128,17 @@ final class UserRepository
         return (bool) $stmt->fetchColumn();
     }
 
+    public static function emailTakenByOtherUser(string $email, string $id): bool
+    {
+        $stmt = Database::connection()->prepare('SELECT 1 FROM users WHERE email = :email AND id <> :id LIMIT 1');
+        $stmt->execute([
+            'email' => $email,
+            'id' => $id,
+        ]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
     public static function insert(
         string $id,
         string $phone,
@@ -160,6 +171,17 @@ final class UserRepository
         $stmt->execute([
             'id' => $id,
             'full_name' => $fullName,
+        ]);
+    }
+
+    public static function updateEmail(string $id, ?string $email): void
+    {
+        $stmt = Database::connection()->prepare(
+            'UPDATE users SET email = :email WHERE id = :id'
+        );
+        $stmt->execute([
+            'id' => $id,
+            'email' => $email,
         ]);
     }
 
