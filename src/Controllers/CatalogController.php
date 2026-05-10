@@ -8,12 +8,62 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Uuid;
 use App\Middleware\AuthMiddleware;
+use App\Repositories\AddressRepository;
 use App\Repositories\CartRepository;
 use App\Repositories\CatalogRepository;
 use App\Repositories\LoveRepository;
+use App\Repositories\OrderRepository;
+use App\Repositories\PageRepository;
+use App\Repositories\WarehouseRepository;
+use App\Repositories\WalletRepository;
+use App\Services\CommerceGatewayPaymentService;
 
 final class CatalogController
 {
+    /** Home aggregate: CMS cards + love ids + active orders + cart summary + wallet */
+    public function home(Request $request): void
+    {
+        $claims = AuthMiddleware::requireAuth($request);
+        if ($claims === null) {
+            return;
+        }
+        $userId = (string) ($claims['sub'] ?? '');
+        $pageName = trim((string) ($request->query('page_name') ?? 'Home'));
+        if ($pageName === '') {
+            $pageName = 'Home';
+        }
+
+        $cart = CartRepository::getActiveCartWithItems($userId);
+        $cartItems = is_array($cart['cart_items'] ?? null) ? $cart['cart_items'] : [];
+        $cartCount = 0;
+        $variantQuantities = [];
+        foreach ($cartItems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $quantity = (int) ($item['quantity'] ?? 0);
+            $variantId = (string) ($item['variant_id'] ?? '');
+            $cartCount += $quantity;
+            if ($variantId !== '') {
+                $variantQuantities[$variantId] = $quantity;
+            }
+        }
+
+        CommerceGatewayPaymentService::expireStaleWalletHolds($userId);
+
+        Response::json([
+            'pages' => PageRepository::findAll($pageName),
+            'lovedVariantIds' => LoveRepository::variantIdsForUser($userId),
+            'activeOrders' => OrderRepository::findActiveHomeOrdersForUser($userId, 20),
+            'cartSummary' => [
+                'count' => $cartCount,
+                'variantQuantities' => $variantQuantities,
+            ],
+            'serviceability' => self::serviceabilityForUser($userId),
+            'wallet' => WalletRepository::findByUserId($userId),
+        ]);
+    }
+
     /** PDP aggregate: variant + siblings + love + cart line + cart count */
     public function variantDetail(Request $request): void
     {
@@ -45,6 +95,7 @@ final class CatalogController
 
         $loveId = LoveRepository::findId($userId, $id);
         $loveWrap = $loveId !== null ? ['id' => $loveId, 'user_id' => $userId, 'variant_id' => $id] : null;
+        $lovedVariantIds = LoveRepository::variantIdsForUser($userId);
 
         $variantOut = $variant;
         $variantOut['loves'] = $loveWrap;
@@ -72,6 +123,7 @@ final class CatalogController
         Response::json([
             'variant' => $variantOut,
             'loves' => $lovesList,
+            'lovedVariantIds' => $lovedVariantIds,
             'allVariants' => $siblings,
             'similarVariants' => $similarVariants,
             'cartItem' => $cartItem,
@@ -182,5 +234,72 @@ final class CatalogController
         $t = preg_replace('/[^A-Z0-9_-]/', '', $t) ?? '';
 
         return $t;
+    }
+
+    /** @return array{has_address: bool, serviceable: bool, nearest_warehouse: array{id:int,name:string,radius_km:float,distance_km:float}|null} */
+    private static function serviceabilityForUser(string $userId): array
+    {
+        $address = AddressRepository::findFirstByUserId($userId);
+        if ($address === null) {
+            return [
+                'has_address' => false,
+                'serviceable' => false,
+                'nearest_warehouse' => null,
+            ];
+        }
+
+        $lat = isset($address['latitude']) ? (float) $address['latitude'] : 0.0;
+        $lng = isset($address['longitude']) ? (float) $address['longitude'] : 0.0;
+
+        $nearestId = null;
+        if ($lat !== 0.0 || $lng !== 0.0) {
+            $nearestId = WarehouseRepository::findNearestEnabledId($lat, $lng);
+        }
+
+        if ($nearestId === null) {
+            return [
+                'has_address' => true,
+                'serviceable' => false,
+                'nearest_warehouse' => null,
+            ];
+        }
+
+        $wh = WarehouseRepository::findById($nearestId);
+        if ($wh === null) {
+            return [
+                'has_address' => true,
+                'serviceable' => false,
+                'nearest_warehouse' => null,
+            ];
+        }
+
+        $whLat = isset($wh['latitude']) ? (float) $wh['latitude'] : 0.0;
+        $whLng = isset($wh['longitude']) ? (float) $wh['longitude'] : 0.0;
+        $radiusKm = isset($wh['radius_km']) ? (float) $wh['radius_km'] : 0.0;
+        $distanceKm = self::haversineKm($lat, $lng, $whLat, $whLng);
+
+        return [
+            'has_address' => true,
+            'serviceable' => $radiusKm > 0 && $distanceKm <= $radiusKm,
+            'nearest_warehouse' => [
+                'id' => (int) ($wh['id'] ?? 0),
+                'name' => (string) ($wh['name'] ?? ''),
+                'radius_km' => $radiusKm,
+                'distance_km' => $distanceKm,
+            ],
+        ];
+    }
+
+    private static function haversineKm(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $r = 6371.0;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) * sin($dLat / 2)
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+            * sin($dLon / 2) * sin($dLon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $r * $c;
     }
 }

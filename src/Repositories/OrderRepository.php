@@ -456,6 +456,51 @@ final class OrderRepository
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function findActiveHomeOrdersForUser(string $userId, int $limit = 20): array
+    {
+        $limit = max(1, min(50, $limit));
+        $stmt = Database::connection()->prepare(
+            "SELECT o.*,
+                    EXISTS (
+                        SELECT 1
+                        FROM order_item_ratings oir
+                        WHERE oir.order_id = o.id AND oir.user_id = o.user_id
+                        LIMIT 1
+                    ) OR EXISTS (
+                        SELECT 1
+                        FROM order_delivery_ratings odr
+                        WHERE odr.order_id = o.id AND odr.user_id = o.user_id
+                        LIMIT 1
+                    ) AS rated
+             FROM orders o
+             WHERE o.user_id = :uid
+               AND LOWER(COALESCE(o.payment_status, '')) IN ('success', 'completed')
+               AND LOWER(REPLACE(REPLACE(COALESCE(o.order_status, ''), '_', ' '), '-', ' '))
+                    NOT IN ('delivered', 'completed', 'canceled', 'cancelled', 'failed')
+             ORDER BY o.created_at DESC, o.id DESC
+             LIMIT :lim"
+        );
+        $stmt->bindValue('uid', $userId, PDO::PARAM_STR);
+        $stmt->bindValue('lim', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (is_array($row)) {
+                $out[] = self::formatOrderWithItems($row);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Admin: single order with line items (no user scope).
      *
      * @return array<string, mixed>|null
